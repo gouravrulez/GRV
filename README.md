@@ -1,8 +1,8 @@
-# Private Lifestyle Store
+# KAOMA Global Store
 
-GitHub and Vercel-ready Next.js website for the new clothing and sexual-wellness business.
+GitHub and Vercel-ready Next.js website for **KAOMA**, the new clothing and sexual-wellness business at [kaoma.in](https://kaoma.in).
 
-The brand name, domain, products, prices, payment provider, customer database and business contact details are intentionally left for the final setup. This project is completely separate from Shree Gauri.
+KAOMA is a completely separate brand, website, database and business setup from Shree Gauri. Products, prices, payment provider and the new customer database will be connected in the next setup phase.
 
 ## Deploy on Vercel
 
@@ -41,9 +41,16 @@ npm run build
 - Empty product catalogue, ready for products and prices later
 - Country and currency selector for key international markets
 - International address fields and worldwide-delivery messaging
-- Checkout and admin interface placeholders
+- Checkout and future admin-integration placeholders
 - Bright, elegant styling with discreet-delivery messaging
 
 ## Before accepting real orders
 
-Connect a new database, authentication, payment gateway, email/WhatsApp notifications and final domain using credentials belonging only to this new business. Never reuse Shree Gauri production secrets.
+Connect a new database, authentication, payment gateway and email/WhatsApp notifications using credentials belonging only to KAOMA. Never reuse Shree Gauri production secrets.
+
+## KAOMA contact identity
+
+- Website: https://kaoma.in
+- Email: kaomaglobal@gmail.com
+- Instagram: https://www.instagram.com/kaoma.in/
+- Facebook: https://www.facebook.com/kaoma.in

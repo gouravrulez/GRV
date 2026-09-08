@@ -48,3 +48,6 @@ a{color:inherit;text-decoration:none}.logo{display:inline-block}nav a{height:100
 .privacy{z-index:3}
 @media(max-width:900px){.hero>img{width:100%!important;height:100%!important;object-fit:cover!important;object-position:68% center!important}.hero .shade{background:linear-gradient(90deg,#fffaf2f5 0%,#fffaf2d8 58%,#fffaf240 100%)}}
 @media(max-width:650px){.hero>img{object-position:70% center!important}.hero .shade{background:linear-gradient(90deg,#fffaf2f7 0%,#fffaf2d8 72%,#fffaf255 100%)}}
+
+/* Approved KAOMA signature-O wordmark */
+.logoImage{display:block;width:auto;height:39px;object-fit:contain}.footerLogo{height:46px;filter:brightness(0) invert(1);opacity:.96}@media(max-width:650px){.logoImage{height:30px}.footerLogo{height:38px}}
