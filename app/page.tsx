@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import {
   Heart,
@@ -16,6 +17,7 @@ import {
   Ban,
   MessageCircle,
   Globe2,
+  Menu,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -44,6 +46,7 @@ type Product = {
   badge: string;
   tone: string;
   description: string;
+  image: string;
 };
 const cats = [
   "Shop all",
@@ -69,6 +72,7 @@ export default function Home() {
     [search, setSearch] = useState(""),
     [cartOpen, setCartOpen] = useState(false),
     [checkout, setCheckout] = useState(false),
+    [mobileNavOpen, setMobileNavOpen] = useState(false),
     [age, setAge] = useState(true),
     [cart, setCart] = useState<Record<number, number>>({}),
     [market, setMarket] = useState(markets[0]);
@@ -147,7 +151,15 @@ export default function Home() {
       </div>
       <header>
         <a className="logo" href="/" aria-label="KAOMA home">
-          <img className="logoImage" src="/kaoma-logo.png" alt="KAOMA" />
+          <Image
+            className="logoImage"
+            src="/kaoma-logo.png"
+            alt="KAOMA"
+            width={1200}
+            height={233}
+            priority
+            sizes="(max-width: 650px) 112px, 190px"
+          />
         </a>
         <nav>
           <a href="/">Home</a>
@@ -219,12 +231,43 @@ export default function Home() {
             <ShoppingBag />
             <b>{count}</b>
           </button>
+          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+            <button
+              className="mobileMenuButton"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation menu"
+              title="Menu"
+            >
+              <Menu />
+            </button>
+            <SheetContent side="left" className="mobileNavSheet">
+              <SheetHeader>
+                <SheetTitle>KAOMA</SheetTitle>
+                <SheetDescription>
+                  Clothing, intimate wellness and discreet gifting.
+                </SheetDescription>
+              </SheetHeader>
+              <nav className="mobileNavLinks" aria-label="Mobile navigation">
+                <a href="/">Home</a>
+                <a href="/categories">Categories</a>
+                <a href="/best-sellers">Best Sellers</a>
+                <a href="/wishlist">Wishlist</a>
+                <a href="/account">Customer Account</a>
+                <a href="/about">About Us</a>
+                <a href="/contact">Contact Us</a>
+              </nav>
+            </SheetContent>
+          </Sheet>
         </div>
       </header>
       <section className="hero">
-        <img
-          src="/kamadeva-rati-hero.png"
-          alt="Elegant artistic interpretation of Kamadeva and Rati in a flowering spring garden"
+        <Image
+          src="/kaoma-hero-mobile-fast.webp"
+          alt="Elegant artistic interpretation of Kamadeva and Rati"
+          fill
+          priority
+          quality={82}
+          sizes="100vw"
         />
         <div className="shade" />
         <div className="heroCopy">
@@ -359,6 +402,12 @@ export default function Home() {
               {filtered.map((p) => (
                 <article key={p.id}>
                   <div className={"art " + p.tone}>
+                    <Image
+                      src={p.image}
+                      alt={p.name}
+                      fill
+                      sizes="(max-width: 650px) 100vw, (max-width: 1050px) 50vw, 25vw"
+                    />
                     <span>{p.badge}</span>
                     <button>
                       <Heart />
