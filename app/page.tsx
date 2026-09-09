@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { db, supabaseReady } from "@/lib/supabase-rest";
 import {
   Heart,
   Search,
@@ -18,6 +19,7 @@ import {
   MessageCircle,
   Globe2,
   Menu,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -38,7 +40,7 @@ import {
 } from "@/components/ui/sheet";
 
 type Product = {
-  id: number;
+  id: string;
   name: string;
   category: string;
   price: number;
@@ -46,7 +48,7 @@ type Product = {
   badge: string;
   tone: string;
   description: string;
-  image: string;
+  image_urls?: string[];
 };
 const cats = [
   "Shop all",
@@ -66,16 +68,23 @@ const markets = [
   { country: "Canada", currency: "CAD", symbol: "C$" },
   { country: "Singapore", currency: "SGD", symbol: "S$" },
 ];
-const products: Product[] = [];
 export default function Home() {
   const [active, setActive] = useState("Shop all"),
     [search, setSearch] = useState(""),
     [cartOpen, setCartOpen] = useState(false),
     [checkout, setCheckout] = useState(false),
-    [mobileNavOpen, setMobileNavOpen] = useState(false),
+    [filtersOpen, setFiltersOpen] = useState(false),
+    [menuOpen, setMenuOpen] = useState(false),
     [age, setAge] = useState(true),
-    [cart, setCart] = useState<Record<number, number>>({}),
+    [cart, setCart] = useState<Record<string, number>>({}),
+    [products, setProducts] = useState<Product[]>([]),
     [market, setMarket] = useState(markets[0]);
+  useEffect(() => {
+    if (!supabaseReady) return;
+    db("products?select=id,name,description,price,image_urls,status,featured,best_seller,new_arrival,categories(name)&status=eq.active&order=created_at.desc")
+      .then((rows) => setProducts(rows.map((p: Record<string, unknown>) => ({ id:String(p.id), name:String(p.name), description:String(p.description||""), price:Number(p.price||0), category:String((p.categories as {name?:string}|null)?.name||"Shop all"), image_urls:(p.image_urls as string[])||[], badge:(p.best_seller?"Best seller":p.new_arrival?"New":"Featured"), tone:"rose" }))))
+      .catch(() => {});
+  }, []);
   const filtered = useMemo(
     () =>
       products.filter(
@@ -106,7 +115,7 @@ export default function Home() {
     toast.success(p.name + " added to your bag");
     buy ? setCheckout(true) : setCartOpen(true);
   };
-  const qty = (id: number, n: number) =>
+  const qty = (id: string, n: number) =>
     setCart((c) => {
       const next = { ...c },
         v = (next[id] || 0) + n;
@@ -151,15 +160,7 @@ export default function Home() {
       </div>
       <header>
         <a className="logo" href="/" aria-label="KAOMA home">
-          <Image
-            className="logoImage"
-            src="/kaoma-logo.png"
-            alt="KAOMA"
-            width={1200}
-            height={233}
-            priority
-            sizes="(max-width: 650px) 112px, 190px"
-          />
+          <img className="logoImage" src="/kaoma-logo.webp" alt="KAOMA" />
         </a>
         <nav>
           <a href="/">Home</a>
@@ -169,6 +170,9 @@ export default function Home() {
           <a href="/contact">Contact Us</a>
         </nav>
         <div className="actions">
+          <button className="menuButton" title="Open menu" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
+            <Menu />
+          </button>
           <label
             className="market"
             title="Choose shipping country and currency"
@@ -231,43 +235,32 @@ export default function Home() {
             <ShoppingBag />
             <b>{count}</b>
           </button>
-          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <button
-              className="mobileMenuButton"
-              onClick={() => setMobileNavOpen(true)}
-              aria-label="Open navigation menu"
-              title="Menu"
-            >
-              <Menu />
-            </button>
-            <SheetContent side="left" className="mobileNavSheet">
-              <SheetHeader>
-                <SheetTitle>KAOMA</SheetTitle>
-                <SheetDescription>
-                  Clothing, intimate wellness and discreet gifting.
-                </SheetDescription>
-              </SheetHeader>
-              <nav className="mobileNavLinks" aria-label="Mobile navigation">
-                <a href="/">Home</a>
-                <a href="/categories">Categories</a>
-                <a href="/best-sellers">Best Sellers</a>
-                <a href="/wishlist">Wishlist</a>
-                <a href="/account">Customer Account</a>
-                <a href="/about">About Us</a>
-                <a href="/contact">Contact Us</a>
-              </nav>
-            </SheetContent>
-          </Sheet>
         </div>
       </header>
+      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+        <SheetContent side="left" className="mobileMenu">
+          <SheetHeader>
+            <SheetTitle>KAOMA</SheetTitle>
+            <SheetDescription>Explore our private adult store.</SheetDescription>
+          </SheetHeader>
+          <nav className="mobileNav">
+            <a href="/">Home</a>
+            <a href="/categories">Categories</a>
+            <a href="/best-sellers">Best Sellers</a>
+            <a href="/about">About Us</a>
+            <a href="/contact">Contact Us</a>
+            <a href="/account">Customer Login</a>
+          </nav>
+        </SheetContent>
+      </Sheet>
       <section className="hero">
         <Image
-          src="/kaoma-hero-mobile-fast.webp"
-          alt="Elegant artistic interpretation of Kamadeva and Rati"
+          src="/kamadeva-rati-hero.webp"
+          alt="Elegant artistic interpretation of Kamadeva and Rati in a flowering spring garden"
           fill
           priority
-          quality={82}
           sizes="100vw"
+          quality={86}
         />
         <div className="shade" />
         <div className="heroCopy">
@@ -344,7 +337,16 @@ export default function Home() {
           <span>{filtered.length} products</span>
         </div>
         <div className="shopBody">
-          <aside className="filterSide">
+          <button
+            className="mobileFilterButton"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            aria-controls="catalog-filters"
+          >
+            <span><SlidersHorizontal /> Filters</span>
+            <ChevronDown className={filtersOpen ? "turned" : ""} />
+          </button>
+          <aside id="catalog-filters" className={`filterSide ${filtersOpen ? "filterOpen" : ""}`}>
             <h3>
               <SlidersHorizontal /> Filters
             </h3>
@@ -402,12 +404,7 @@ export default function Home() {
               {filtered.map((p) => (
                 <article key={p.id}>
                   <div className={"art " + p.tone}>
-                    <Image
-                      src={p.image}
-                      alt={p.name}
-                      fill
-                      sizes="(max-width: 650px) 100vw, (max-width: 1050px) 50vw, 25vw"
-                    />
+                    {p.image_urls?.[0] && <Image className="productImage" src={p.image_urls[0]} alt={p.name} fill sizes="(max-width: 700px) 100vw, 25vw" unoptimized />}
                     <span>{p.badge}</span>
                     <button>
                       <Heart />
@@ -486,7 +483,7 @@ export default function Home() {
           <b className="logo">
             <img
               className="logoImage footerLogo"
-              src="/kaoma-logo.png"
+              src="/kaoma-logo.webp"
               alt="KAOMA"
             />
           </b>

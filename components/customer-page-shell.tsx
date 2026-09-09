@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import Image from "next/image";
 import { MessageCircle, PackageCheck } from "lucide-react";
 
 export function CustomerPageShell({
@@ -22,14 +21,7 @@ export function CustomerPageShell({
       </div>
       <header className="simpleHeader">
         <a className="logo" href="/" aria-label="KAOMA home">
-          <Image
-            className="logoImage"
-            src="/kaoma-logo.png"
-            alt="KAOMA"
-            width={1200}
-            height={233}
-            sizes="(max-width: 650px) 112px, 190px"
-          />
+          <img className="logoImage" src="/kaoma-logo.webp" alt="KAOMA" />
         </a>
         <nav>
           <a href="/">Home</a>
@@ -38,16 +30,6 @@ export function CustomerPageShell({
           <a href="/about">About Us</a>
           <a href="/contact">Contact Us</a>
         </nav>
-        <details className="simpleMobileMenu">
-          <summary>Menu</summary>
-          <div>
-            <a href="/">Home</a>
-            <a href="/categories">Categories</a>
-            <a href="/best-sellers">Best Sellers</a>
-            <a href="/account">Account</a>
-            <a href="/contact">Contact</a>
-          </div>
-        </details>
       </header>
       <section className="pageHero">
         <p>{eyebrow}</p>

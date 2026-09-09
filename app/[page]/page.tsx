@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { CustomerPageShell } from "@/components/customer-page-shell";
+import { CustomerAccount } from "@/components/customer-account";
 
 const pages = {
   categories: {
@@ -181,20 +182,7 @@ export default async function InfoPage({
         </div>
       )}
       {data.kind === "account" && (
-        <form className="contactForm">
-          <label>
-            Email
-            <input type="email" placeholder="you@example.com" />
-          </label>
-          <label>
-            Password
-            <input type="password" placeholder="••••••••" />
-          </label>
-          <button type="button" className="primary">
-            Sign in securely
-          </button>
-          <a href="/contact">Need help with your account?</a>
-        </form>
+        <CustomerAccount />
       )}
       {data.kind === "guides" && (
         <div className="pageGrid">
