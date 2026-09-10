@@ -17,12 +17,14 @@ export async function signIn(email: string, password: string) {
 
 export async function signUp(email:string,password:string,name:string){
  if(!url||!key)throw new Error("Supabase is not configured yet.");
- const response=await fetch(`${url}/auth/v1/signup`,{method:"POST",headers:{apikey:key,"Content-Type":"application/json"},body:JSON.stringify({email,password,data:{full_name:name},options:{emailRedirectTo:"https://kaoma.in/account"}})});
+ const redirectTo=encodeURIComponent("https://kaoma.in/account");
+ const response=await fetch(`${url}/auth/v1/signup?redirect_to=${redirectTo}`,{method:"POST",headers:{apikey:key,"Content-Type":"application/json"},body:JSON.stringify({email,password,data:{full_name:name}})});
  const data=await response.json();if(!response.ok)throw new Error(data.msg||data.error_description||"Account creation failed.");return data;
 }
 export async function resetPassword(email:string){
  if(!url||!key)throw new Error("Supabase is not configured yet.");
- const response=await fetch(`${url}/auth/v1/recover`,{method:"POST",headers:{apikey:key,"Content-Type":"application/json"},body:JSON.stringify({email,gotrue_meta_security:{captcha_token:null}})});
+ const redirectTo=encodeURIComponent("https://kaoma.in/account");
+ const response=await fetch(`${url}/auth/v1/recover?redirect_to=${redirectTo}`,{method:"POST",headers:{apikey:key,"Content-Type":"application/json"},body:JSON.stringify({email,gotrue_meta_security:{captcha_token:null}})});
  if(!response.ok)throw new Error((await response.json()).msg||"Reset request failed.");
 }
 

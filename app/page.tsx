@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { db, supabaseReady } from "@/lib/supabase-rest";
 import {
   Heart,
@@ -49,7 +49,13 @@ type Product = {
   tone: string;
   description: string;
   image_urls?: string[];
+  sizes?: string[];
+  colours?: string[];
+  stock_quantity:number;
 };
+type StorefrontSettings={announcement?:string;packaging_message?:string;logo_url?:string;hero_image_url?:string;eyebrow?:string;heading?:string};
+type CartLine={qty:number;size:string;colour:string};
+type ProductReview={id:string;product_id:string;reviewer_name:string;rating:number;title?:string;body:string};
 const cats = [
   "Shop all",
   "For Women",
@@ -76,14 +82,24 @@ export default function Home() {
     [filtersOpen, setFiltersOpen] = useState(false),
     [menuOpen, setMenuOpen] = useState(false),
     [age, setAge] = useState(true),
-    [cart, setCart] = useState<Record<string, number>>({}),
+    [cart, setCart] = useState<Record<string, CartLine>>({}),
     [products, setProducts] = useState<Product[]>([]),
+    [selectedProduct, setSelectedProduct] = useState<Product | null>(null),
+    [selectedSize,setSelectedSize]=useState(""),
+    [selectedColour,setSelectedColour]=useState(""),
+    [reviews,setReviews]=useState<ProductReview[]>([]),
+    [placingOrder,setPlacingOrder]=useState(false),
+    [customerEmail,setCustomerEmail]=useState(""),
+    [storefront,setStorefront]=useState<StorefrontSettings>({}),
     [market, setMarket] = useState(markets[0]);
   useEffect(() => {
+    setCustomerEmail(localStorage.getItem("kaoma_customer_email")||"");
     if (!supabaseReady) return;
-    db("products?select=id,name,description,price,image_urls,status,featured,best_seller,new_arrival,categories(name)&status=eq.active&order=created_at.desc")
-      .then((rows) => setProducts(rows.map((p: Record<string, unknown>) => ({ id:String(p.id), name:String(p.name), description:String(p.description||""), price:Number(p.price||0), category:String((p.categories as {name?:string}|null)?.name||"Shop all"), image_urls:(p.image_urls as string[])||[], badge:(p.best_seller?"Best seller":p.new_arrival?"New":"Featured"), tone:"rose" }))))
+    db("products?select=id,name,description,price,image_urls,sizes,colours,stock_quantity,status,featured,best_seller,new_arrival,categories(name)&status=eq.active&order=created_at.desc")
+      .then((rows) => setProducts(rows.map((p: Record<string, unknown>) => ({ id:String(p.id), name:String(p.name), description:String(p.description||""), price:Number(p.price||0), category:String((p.categories as {name?:string}|null)?.name||"Shop all"), image_urls:(p.image_urls as string[])||[],sizes:(p.sizes as string[])||[],colours:(p.colours as string[])||[],stock_quantity:Number(p.stock_quantity||0), badge:(p.best_seller?"Best seller":p.new_arrival?"New":"Featured"), tone:"rose" }))))
       .catch(() => {});
+    db("reviews?select=id,product_id,reviewer_name,rating,title,body&status=eq.approved&order=created_at.desc").then(setReviews).catch(()=>{});
+    db("site_settings?select=key,value&key=in.(branding,homepage)").then((rows)=>setStorefront(rows.reduce((all:StorefrontSettings,row:{value?:StorefrontSettings})=>({...all,...row.value}),{}))).catch(()=>{});
   }, []);
   const filtered = useMemo(
     () =>
@@ -97,10 +113,8 @@ export default function Home() {
       ),
     [active, search],
   );
-  const items = products
-      .filter((p) => cart[p.id])
-      .map((p) => ({ ...p, qty: cart[p.id] })),
-    count = Object.values(cart).reduce((a, b) => a + b, 0),
+  const items = products.filter((p) => cart[p.id]).map((p) => ({ ...p, ...cart[p.id] })),
+    count = Object.values(cart).reduce((a, b) => a + b.qty, 0),
     subtotal = items.reduce((s, p) => s + p.price * p.qty, 0);
   const go = (c: string) => {
     setActive(c);
@@ -110,21 +124,33 @@ export default function Home() {
       20,
     );
   };
-  const add = (p: Product, buy = false) => {
-    setCart((c) => ({ ...c, [p.id]: (c[p.id] || 0) + 1 }));
+  const add = (p: Product, buy = false, size=selectedSize||p.sizes?.[0]||"Standard",colour=selectedColour||p.colours?.[0]||"As shown") => {
+    if(p.stock_quantity<1){toast.error("This product is currently out of stock");return}
+    setCart((c) => ({ ...c, [p.id]: {qty:Math.min((c[p.id]?.qty||0)+1,p.stock_quantity),size,colour} }));
     toast.success(p.name + " added to your bag");
-    buy ? setCheckout(true) : setCartOpen(true);
+    setSelectedProduct(null);buy ? openCheckout() : setCartOpen(true);
   };
+  const openProduct=(p:Product)=>{setSelectedProduct(p);setSelectedSize(p.sizes?.[0]||"");setSelectedColour(p.colours?.[0]||"")};
+  const openCheckout=()=>{if(!localStorage.getItem("kaoma_customer_token")){toast.error("Please sign in before purchasing");setTimeout(()=>location.href="/account",500);return}setCartOpen(false);setCheckout(true)};
   const qty = (id: string, n: number) =>
     setCart((c) => {
       const next = { ...c },
-        v = (next[id] || 0) + n;
-      v > 0 ? (next[id] = v) : delete next[id];
+        v = (next[id]?.qty || 0) + n;
+      v > 0 ? (next[id] = {...next[id],qty:v}) : delete next[id];
       return next;
     });
+  async function placeOrder(event:FormEvent<HTMLFormElement>){event.preventDefault();const token=localStorage.getItem("kaoma_customer_token")||"",userId=localStorage.getItem("kaoma_customer_id")||"",email=localStorage.getItem("kaoma_customer_email")||"";if(!token||!userId){toast.error("Please sign in before purchasing");location.href="/account";return}if(!items.length){toast.error("Your bag is empty");return}setPlacingOrder(true);const form=new FormData(event.currentTarget),fullName=`${form.get("first_name")} ${form.get("last_name")}`.trim(),address={line1:String(form.get("address")),city:String(form.get("city")),region:String(form.get("region")),postal_code:String(form.get("postal_code")),country:market.country,phone:String(form.get("phone"))},orderNumber=`KAOMA-${Date.now().toString().slice(-8)}-${crypto.randomUUID().slice(0,4).toUpperCase()}`;try{await db("profiles?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify({user_id:userId,full_name:fullName,email,phone:address.phone,country:address.country,address_line1:address.line1,city:address.city,region:address.region,postal_code:address.postal_code})});const created=await db("orders",token,{method:"POST",body:JSON.stringify({user_id:userId,order_number:orderNumber,customer_email:email,currency:"INR",subtotal,shipping:0,tax:0,total:subtotal,status:"pending",payment_status:"pending",shipping_address:address})});const orderId=created?.[0]?.id;if(!orderId)throw Error("Order could not be created.");await db("order_items",token,{method:"POST",body:JSON.stringify(items.map(item=>({order_id:orderId,product_id:item.id,product_name:item.name,quantity:item.qty,unit_price:item.price,selected_size:item.size,selected_colour:item.colour})))});void fetch("/api/order-email",{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({customerEmail:email,orderNumber})});setCart({});setCheckout(false);toast.success(`Order ${orderNumber} created. Payment confirmation is pending.`)}catch(error){toast.error(error instanceof Error?error.message:"Unable to place order") }finally{setPlacingOrder(false)}}
+  async function submitReview(event:FormEvent<HTMLFormElement>){event.preventDefault();const token=localStorage.getItem("kaoma_customer_token")||"",userId=localStorage.getItem("kaoma_customer_id")||"";if(!token||!userId){toast.error("Sign in to write a verified review");location.href="/account";return}if(!selectedProduct)return;const form=new FormData(event.currentTarget);try{await db("reviews",token,{method:"POST",body:JSON.stringify({product_id:selectedProduct.id,user_id:userId,reviewer_name:String(form.get("reviewer_name")),rating:Number(form.get("rating")),title:String(form.get("title")),body:String(form.get("body")),status:"pending"})});event.currentTarget.reset();toast.success("Review submitted for approval") }catch(error){toast.error(error instanceof Error?error.message:"Unable to submit review")}}
   return (
     <main>
       <Toaster position="top-center" richColors />
+      <Dialog open={Boolean(selectedProduct)} onOpenChange={(open) => !open && setSelectedProduct(null)}>
+        <DialogContent className="productGalleryDialog">
+          <DialogHeader><DialogTitle>{selectedProduct?.name}</DialogTitle><DialogDescription>{selectedProduct?.description}</DialogDescription></DialogHeader>
+          <div className="customerGallery">{selectedProduct?.image_urls?.map((src,index)=><figure key={src}><div><Image src={src} alt={`${selectedProduct.name} ${index===0?"main image":`promotional image ${index}`}`} fill sizes="(max-width: 700px) 92vw, 45vw" unoptimized/></div><figcaption>{index===0?"Main image":`Promotional image ${index}`}</figcaption></figure>)}</div>
+          {selectedProduct&&<><div className="variantSelectors">{Boolean(selectedProduct.sizes?.length)&&<label>Size<select value={selectedSize} onChange={e=>setSelectedSize(e.target.value)}>{selectedProduct.sizes?.map(size=><option key={size}>{size}</option>)}</select></label>}{Boolean(selectedProduct.colours?.length)&&<label>Colour<select value={selectedColour} onChange={e=>setSelectedColour(e.target.value)}>{selectedProduct.colours?.map(colour=><option key={colour}>{colour}</option>)}</select></label>}</div><p className="stockLine">{selectedProduct.stock_quantity>0?`${selectedProduct.stock_quantity} in stock`:"Out of stock"}</p><div className="galleryBuy"><button className="primary" onClick={()=>add(selectedProduct)}>Add to cart</button><button className="primary" onClick={()=>add(selectedProduct,true)}>Buy now</button></div><section className="productReviews"><h3>Customer reviews</h3>{reviews.filter(review=>review.product_id===selectedProduct.id).map(review=><article key={review.id}><b>{"★".repeat(review.rating)} · {review.reviewer_name}</b><span>{review.title||review.body}</span></article>)}{!reviews.some(review=>review.product_id===selectedProduct.id)&&<p>No reviews yet.</p>}<form onSubmit={submitReview}><input name="reviewer_name" placeholder="Your name" required/><select name="rating" defaultValue="5"><option value="5">5 stars</option><option value="4">4 stars</option><option value="3">3 stars</option><option value="2">2 stars</option><option value="1">1 star</option></select><input name="title" placeholder="Review title"/><textarea name="body" placeholder="Share your experience" required/><button className="outlineReview">Submit verified review</button></form></section></>}
+        </DialogContent>
+      </Dialog>
       <Dialog open={age} onOpenChange={() => {}}>
         <DialogContent className="ageCard [&>button]:hidden">
           <div className="ageMark">18+</div>
@@ -154,13 +180,13 @@ export default function Home() {
         </DialogContent>
       </Dialog>
       <div className="announce">
-        <b>OPEN 24/7 — INCLUDING SUNDAYS</b>
+        <b>{storefront.announcement||"OPEN 24/7 — INCLUDING SUNDAYS"}</b>
         <i />
-        <PackageCheck /> DISCREET PACKAGING · INDIA & INTERNATIONAL DELIVERY
+        <PackageCheck /> {storefront.packaging_message||"DISCREET PACKAGING · INDIA & INTERNATIONAL DELIVERY"}
       </div>
       <header>
         <a className="logo" href="/" aria-label="KAOMA home">
-          <img className="logoImage" src="/kaoma-logo.webp" alt="KAOMA" />
+          <Image className="logoImage" src={storefront.logo_url||"/kaoma-logo.webp"} alt="KAOMA" width={190} height={54} unoptimized />
         </a>
         <nav>
           <a href="/">Home</a>
@@ -255,21 +281,18 @@ export default function Home() {
       </Sheet>
       <section className="hero">
         <Image
-          src="/kamadeva-rati-hero.webp"
+          src={storefront.hero_image_url||"/kamadeva-rati-hero.webp"}
           alt="Elegant artistic interpretation of Kamadeva and Rati in a flowering spring garden"
           fill
           priority
           sizes="100vw"
           quality={86}
+          unoptimized={Boolean(storefront.hero_image_url)}
         />
         <div className="shade" />
         <div className="heroCopy">
-          <p>DESIRE · BEAUTY · CONNECTION</p>
-          <h1>
-            The art of pleasure,
-            <br />
-            <em>beautifully expressed.</em>
-          </h1>
+          <p>{storefront.eyebrow||"DESIRE · BEAUTY · CONNECTION"}</p>
+          <h1>{storefront.heading||<>The art of pleasure,<br/><em>beautifully expressed.</em></>}</h1>
           <span>
             Inspired by Kāma—the celebration of love, desire and aesthetic
             enjoyment—through intimate dressing, thoughtful wellness and
@@ -411,6 +434,7 @@ export default function Home() {
                     </button>
                     <i />
                     <strong>{p.category}</strong>
+                    {p.image_urls&&p.image_urls.length>1&&<button className="galleryCount" onClick={()=>openProduct(p)}>{p.image_urls.length} photos</button>}
                   </div>
                   <div className="info">
                     <small>{p.category}</small>
@@ -423,7 +447,7 @@ export default function Home() {
                       )}
                     </div>
                     <div className="productBtns">
-                      <button onClick={() => add(p)}>Add to bag</button>
+                      <button onClick={() => p.image_urls?.length?openProduct(p):add(p)}>{p.image_urls?.length?"View details":"Add to cart"}</button>
                       <button onClick={() => add(p, true)}>Buy now</button>
                     </div>
                   </div>
@@ -547,6 +571,7 @@ export default function Home() {
                     <div>
                       <b>{p.name}</b>
                       <span>₹{p.price.toLocaleString("en-IN")}</span>
+                      <span className="cartVariant">Size: {p.size} · Colour: {p.colour}</span>
                       <small>
                         <button onClick={() => qty(p.id, -1)}>
                           <Minus />
@@ -580,8 +605,7 @@ export default function Home() {
               <button
                 className="primary full"
                 onClick={() => {
-                  setCartOpen(false);
-                  setCheckout(true);
+                  openCheckout();
                 }}
               >
                 Proceed to secure checkout
@@ -611,7 +635,7 @@ export default function Home() {
               selected destination when live payments are connected.
             </DialogDescription>
           </DialogHeader>
-          <div className="steps">
+          <form onSubmit={placeOrder} className="checkoutForm"><div className="steps">
             <b>1 Contact</b>
             <span>2 Delivery</span>
             <span>3 Payment</span>
@@ -619,28 +643,20 @@ export default function Home() {
           <div className="two">
             <label>
               First name
-              <input autoComplete="given-name" placeholder="First name" />
+              <input name="first_name" autoComplete="given-name" placeholder="First name" required />
             </label>
             <label>
               Last name
-              <input autoComplete="family-name" placeholder="Last name" />
+              <input name="last_name" autoComplete="family-name" placeholder="Last name" required />
             </label>
           </div>
           <label>
             Email
-            <input
-              type="email"
-              autoComplete="email"
-              placeholder="Order confirmation email"
-            />
+            <input type="email" autoComplete="email" value={customerEmail} readOnly />
           </label>
           <label>
             Phone, including country code
-            <input
-              type="tel"
-              autoComplete="tel"
-              placeholder="+91 98765 43210"
-            />
+            <input name="phone" type="tel" autoComplete="tel" placeholder="+91 98765 43210" required />
           </label>
           <label>
             Country or region
@@ -662,30 +678,21 @@ export default function Home() {
           </label>
           <label>
             Street address
-            <input
-              autoComplete="street-address"
-              placeholder="House number and street"
-            />
+            <input name="address" autoComplete="street-address" placeholder="House number and street" required />
           </label>
           <div className="two">
             <label>
               City
-              <input autoComplete="address-level2" placeholder="City" />
+              <input name="city" autoComplete="address-level2" placeholder="City" required />
             </label>
             <label>
               State / Province
-              <input
-                autoComplete="address-level1"
-                placeholder="State or province"
-              />
+              <input name="region" autoComplete="address-level1" placeholder="State or province" required />
             </label>
           </div>
           <label>
             Postal / ZIP code
-            <input
-              autoComplete="postal-code"
-              placeholder="Postal or ZIP code"
-            />
+            <input name="postal_code" autoComplete="postal-code" placeholder="Postal or ZIP code" required />
           </label>
           <p className="checkoutMarket">
             <Globe2 /> Checkout currency:{" "}
@@ -693,19 +700,12 @@ export default function Home() {
               {market.currency} ({market.symbol})
             </b>
           </p>
-          <button
-            className="primary full"
-            onClick={() =>
-              toast.info(
-                "International payment setup comes after business approval",
-              )
-            }
-          >
-            Continue to delivery
-          </button>
+          <div className="checkoutTotal"><span>Order total</span><b>₹{subtotal.toLocaleString("en-IN")}</b></div>
+          <button className="primary full" disabled={placingOrder}>{placingOrder?"Creating secure order…":"Place order — payment pending"}</button>
           <p className="secure">
             <LockKeyhole /> Your details remain private and encrypted.
           </p>
+          </form>
         </DialogContent>
       </Dialog>
     </main>

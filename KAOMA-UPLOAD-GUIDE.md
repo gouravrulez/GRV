@@ -23,3 +23,7 @@ Use the Supabase project URL and publishable/anon key. Never use the service-rol
 4. Open `/admin-login` directly. The customer website deliberately contains no admin-login link.
 
 The advanced desktop/mobile administration area manages categories, subcategories, full product information, pictures, prices, sizes, colours, stock, drafts, publishing, best sellers, new arrivals and order status. Customer email signup, confirmation, sign-in and password reset use Supabase Auth. Resend sends order confirmation to the customer and the KAOMA order email after checkout/payment code calls the protected `/api/order-email` route.
+
+The upgraded administrator sidebar includes Orders, Customers, Categories & Subcategories, Products & Inventory, Customer Reviews, Photos/Logo/Homepage, View Store and Log Out. Product uploads accept multiple images in one selection. The first image is the main catalogue image; use Main, up/down and Remove controls while editing to organise the promotional gallery.
+
+The complete commerce flow includes size and colour variants, stock checks, Add to Cart, Buy Now, mandatory customer sign-in before checkout, saved customer contact/address information, order and line-item records, admin-visible order variants, and verified review submission with moderation. Orders are created with payment status `pending` until a live payment gateway is connected. Order emails activate after the Resend environment values described above are configured.
