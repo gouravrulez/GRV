@@ -1,8 +1,279 @@
 "use client";
-import {FormEvent,useState} from "react";
-import {resetPassword,signIn,signUp,supabaseReady} from "@/lib/supabase-rest";
+import { FormEvent, useEffect, useState } from "react";
+import {
+  db,
+  getCurrentUser,
+  sendEmailOtp,
+  supabaseReady,
+  verifyEmailOtp,
+} from "@/lib/supabase-rest";
 
-export function CustomerAccount(){const [mode,setMode]=useState<"signin"|"signup">("signin");const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");
- async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setMessage("");const f=new FormData(e.currentTarget),email=String(f.get("email")),password=String(f.get("password"));try{if(mode==="signup"){await signUp(email,password,String(f.get("name")));setMessage("Account created. Please confirm your email before signing in.")}else{const s=await signIn(email,password);localStorage.setItem("kaoma_customer_token",s.access_token);localStorage.setItem("kaoma_customer_email",s.user.email||email);localStorage.setItem("kaoma_customer_id",s.user.id);setMessage("Signed in successfully. Returning you to the store…");setTimeout(()=>location.href="/",700)}}catch(x){setMessage(x instanceof Error?x.message:"Unable to continue.")}finally{setBusy(false)}}
- async function forgot(){const email=(document.querySelector('[name="email"]') as HTMLInputElement)?.value;if(!email){setMessage("Enter your email first.");return}try{await resetPassword(email);setMessage("Password-reset email sent.")}catch(x){setMessage(x instanceof Error?x.message:"Unable to send reset email.")}}
- return <div className="accountBox"><div className="accountTabs"><button className={mode==="signin"?"active":""} onClick={()=>setMode("signin")}>Sign in</button><button className={mode==="signup"?"active":""} onClick={()=>setMode("signup")}>Create account</button></div><form onSubmit={submit}>{mode==="signup"&&<label>Full name<input name="name" autoComplete="name" required/></label>}<label>Email<input name="email" type="email" autoComplete="email" required/></label><label>Password<input name="password" type="password" minLength={8} autoComplete={mode==="signup"?"new-password":"current-password"} required/></label>{message&&<div className="accountMessage">{message}</div>} {!supabaseReady&&<div className="adminNotice">Customer accounts activate after the Supabase environment values are added in Vercel.</div>}<button className="primary" disabled={busy||!supabaseReady}>{busy?"Please wait…":mode==="signup"?"Create private account":"Sign in securely"}</button>{mode==="signin"&&<button className="textButton" type="button" onClick={forgot}>Forgot password?</button>}</form><p>Your account keeps orders, addresses and favourites private.</p></div>}
+type Profile = {
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+  address_line1?: string;
+  city?: string;
+  region?: string;
+  postal_code?: string;
+};
+export function CustomerAccount() {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [token, setToken] = useState("");
+  const [userId, setUserId] = useState("");
+  const [profile, setProfile] = useState<Profile>({});
+  useEffect(() => {
+    const hash = new URLSearchParams(location.hash.replace(/^#/, "")),
+      hashToken = hash.get("access_token") || "",
+      hashUser = hash.get("user_id") || "";
+    if (hashToken) {
+      localStorage.setItem("kaoma_customer_token", hashToken);
+      if (hashUser) localStorage.setItem("kaoma_customer_id", hashUser);
+      else
+        getCurrentUser(hashToken)
+          .then((user) => {
+            localStorage.setItem("kaoma_customer_id", user.id);
+            localStorage.setItem("kaoma_customer_email", user.email || "");
+            setUserId(user.id);
+            db(`profiles?user_id=eq.${user.id}&select=*`, hashToken).then(
+              (rows) => setProfile(rows[0] || {}),
+            );
+          })
+          .catch(() => {});
+      history.replaceState(null, "", "/account");
+    }
+    const t = hashToken || localStorage.getItem("kaoma_customer_token") || "",
+      id = hashUser || localStorage.getItem("kaoma_customer_id") || "";
+    setToken(t);
+    setUserId(id);
+    if (t && id)
+      db(`profiles?user_id=eq.${id}&select=*`, t)
+        .then((rows) => setProfile(rows[0] || {}))
+        .catch(() => {});
+  }, []);
+  async function requestCode(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      await sendEmailOtp(email, name);
+      setCodeSent(true);
+      setMessage(
+        "We sent a secure sign-in code to your email. If your Supabase template uses a link, you may use that link instead.",
+      );
+    } catch (x) {
+      setMessage(x instanceof Error ? x.message : "Unable to send code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function confirmCode(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setMessage("");
+    const f = new FormData(e.currentTarget);
+    try {
+      const s = await verifyEmailOtp(email, String(f.get("code")).trim());
+      localStorage.setItem("kaoma_customer_token", s.access_token);
+      localStorage.setItem("kaoma_customer_email", s.user.email || email);
+      localStorage.setItem("kaoma_customer_id", s.user.id);
+      setToken(s.access_token);
+      setUserId(s.user.id);
+      setMessage("Signed in securely.");
+      const rows = await db(
+        `profiles?user_id=eq.${s.user.id}&select=*`,
+        s.access_token,
+      );
+      setProfile(rows[0] || { email });
+    } catch (x) {
+      setMessage(x instanceof Error ? x.message : "Unable to verify code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveProfile(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    const f = new FormData(e.currentTarget),
+      body = {
+        user_id: userId,
+        full_name: String(f.get("full_name")),
+        email:
+          localStorage.getItem("kaoma_customer_email") ||
+          profile.email ||
+          email,
+        phone: String(f.get("phone")),
+        country: String(f.get("country")),
+        address_line1: String(f.get("address_line1")),
+        city: String(f.get("city")),
+        region: String(f.get("region")),
+        postal_code: String(f.get("postal_code")),
+      };
+    try {
+      await db("profiles?on_conflict=user_id", token, {
+        method: "POST",
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=representation",
+        },
+        body: JSON.stringify(body),
+      });
+      setProfile(body);
+      setMessage("Your delivery details have been saved.");
+    } catch (x) {
+      setMessage(x instanceof Error ? x.message : "Unable to save details.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  function logout() {
+    localStorage.removeItem("kaoma_customer_token");
+    localStorage.removeItem("kaoma_customer_email");
+    localStorage.removeItem("kaoma_customer_id");
+    location.reload();
+  }
+  if (token)
+    return (
+      <div className="accountBox">
+        <h2>Your private account</h2>
+        <p>Save your international delivery address for a faster checkout.</p>
+        <form onSubmit={saveProfile}>
+          <label>
+            Full name
+            <input
+              name="full_name"
+              defaultValue={profile.full_name || ""}
+              required
+            />
+          </label>
+          <label>
+            Phone with country code
+            <input
+              name="phone"
+              defaultValue={profile.phone || ""}
+              placeholder="+91 98765 43210"
+              required
+            />
+          </label>
+          <label>
+            Country / region
+            <input
+              name="country"
+              defaultValue={profile.country || ""}
+              placeholder="India"
+              required
+            />
+          </label>
+          <label>
+            Street address
+            <input
+              name="address_line1"
+              defaultValue={profile.address_line1 || ""}
+              required
+            />
+          </label>
+          <div className="two">
+            <label>
+              City
+              <input name="city" defaultValue={profile.city || ""} required />
+            </label>
+            <label>
+              State / province
+              <input
+                name="region"
+                defaultValue={profile.region || ""}
+                required
+              />
+            </label>
+          </div>
+          <label>
+            Postal / ZIP code
+            <input
+              name="postal_code"
+              defaultValue={profile.postal_code || ""}
+              required
+            />
+          </label>
+          {message && <div className="accountMessage">{message}</div>}
+          <button className="primary" disabled={busy}>
+            {busy ? "Saving…" : "Save my details"}
+          </button>
+          <button className="textButton" type="button" onClick={logout}>
+            Sign out
+          </button>
+        </form>
+      </div>
+    );
+  return (
+    <div className="accountBox">
+      <div className="accountTabs">
+        <button className="active">Email OTP login & sign up</button>
+      </div>
+      {!codeSent ? (
+        <form onSubmit={requestCode}>
+          <label>
+            Full name (new customers)
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+            />
+          </label>
+          <label>
+            Email
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              autoComplete="email"
+              required
+            />
+          </label>
+          {message && <div className="accountMessage">{message}</div>}
+          {!supabaseReady && (
+            <div className="adminNotice">
+              Customer accounts activate after the Supabase environment values
+              are added in Vercel.
+            </div>
+          )}
+          <button className="primary" disabled={busy || !supabaseReady}>
+            {busy ? "Sending…" : "Send secure email code"}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={confirmCode}>
+          <label>
+            Code sent to {email}
+            <input
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              minLength={6}
+              placeholder="6-digit code"
+              required
+            />
+          </label>
+          {message && <div className="accountMessage">{message}</div>}
+          <button className="primary" disabled={busy}>
+            {busy ? "Checking…" : "Verify and sign in"}
+          </button>
+          <button
+            className="textButton"
+            type="button"
+            onClick={() => setCodeSent(false)}
+          >
+            Use another email
+          </button>
+        </form>
+      )}
+      <p>
+        No paid email plan is required for Supabase&apos;s built-in email
+        authentication during early launch. Sending limits apply.
+      </p>
+    </div>
+  );
+}

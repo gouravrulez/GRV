@@ -40,6 +40,15 @@ create table if not exists public.products (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.products add column if not exists category_ids uuid[] not null default '{}';
+alter table public.products add column if not exists short_description text;
+alter table public.products add column if not exists material text;
+alter table public.products add column if not exists care_instructions text;
+alter table public.products add column if not exists colour_image_map jsonb not null default '{}'::jsonb;
+alter table public.products add column if not exists related_product_ids uuid[] not null default '{}';
+alter table public.products add column if not exists enable_add_to_cart boolean not null default true;
+alter table public.products add column if not exists enable_buy_now boolean not null default true;
+alter table public.products add column if not exists enable_wishlist boolean not null default true;
 create table if not exists public.profiles (user_id uuid primary key references auth.users(id) on delete cascade, full_name text, email text, phone text, country text, address_line1 text, city text, region text, postal_code text, created_at timestamptz not null default now());
 create table if not exists public.orders (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete set null, order_number text not null unique, customer_email text not null, currency text not null, subtotal numeric(12,2) not null default 0, shipping numeric(12,2) not null default 0, tax numeric(12,2) not null default 0, total numeric(12,2) not null default 0, status text not null default 'pending', payment_status text not null default 'pending', shipping_address jsonb not null default '{}', tracking_number text, created_at timestamptz not null default now());
 create table if not exists public.order_items (id uuid primary key default gen_random_uuid(), order_id uuid not null references public.orders(id) on delete cascade, product_id uuid references public.products(id) on delete set null, product_name text not null, quantity integer not null check(quantity>0), unit_price numeric(12,2) not null, selected_size text, selected_colour text);
@@ -60,6 +69,7 @@ create index if not exists idx_order_items_product_id on public.order_items(prod
 create index if not exists idx_orders_user_id on public.orders(user_id);
 create index if not exists idx_products_category_id on public.products(category_id);
 create index if not exists idx_products_subcategory_id on public.products(subcategory_id);
+create index if not exists idx_products_category_ids on public.products using gin(category_ids);
 create index if not exists idx_reviews_product_id on public.reviews(product_id);
 create index if not exists idx_reviews_user_id on public.reviews(user_id);
 create index if not exists idx_reviews_status_created on public.reviews(status,created_at desc);
@@ -100,6 +110,14 @@ grant select, insert, update, delete on public.categories, public.subcategories,
 grant select on public.admins to authenticated;
 grant select on public.reviews to anon;
 grant select, insert, update, delete on public.reviews to authenticated;
+
+insert into public.categories(name,slug,sort_order,active) values
+ ('For Women','for-women',10,true),('For Men','for-men',20,true),('Golden Night','golden-night',30,true),
+ ('Foreplay','foreplay',40,true),('Unique Gifts','unique-gifts',50,true)
+on conflict(slug) do update set active=true,sort_order=excluded.sort_order;
+
+insert into public.site_settings(key,value) values ('commerce','{"base_currency":"INR","rates":{"INR":1,"USD":0.012,"GBP":0.0094,"EUR":0.011,"AED":0.044,"AUD":0.018,"CAD":0.016,"SGD":0.016},"shipping":{"India":99,"International":1499,"free_above":5000},"payments":{"provider":"manual","enabled":false}}'::jsonb)
+on conflict(key) do nothing;
 
 create or replace function public.handle_new_profile()
 returns trigger language plpgsql security invoker set search_path = '' as $$

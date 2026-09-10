@@ -1,0 +1,21 @@
+KAOMA GLOBAL COMMERCE UPDATE
+
+1. Upload the folders/files in this ZIP into the existing KAOMA GitHub repository.
+   Keep the same folder paths and choose overwrite/replace for these files only.
+2. In Supabase open SQL Editor > New query.
+3. Copy all contents of supabase/kaoma_global_commerce_upgrade.sql, click Run once.
+4. Redeploy KAOMA in Vercel (or let the GitHub deployment finish).
+5. Open https://kaoma.in/admin/global to set currency, shipping and future payment options.
+6. Open https://kaoma.in/admin/products to add products, multiple categories, sizes,
+   colours, colour images, related products, gallery photos and selling-button controls.
+
+IMPORTANT
+- Do not upload this ZIP to the Shree Gauri project.
+- Razorpay/PhonePe online collection remains OFF until secure server credentials,
+  webhooks and a live merchant account are connected. Manual/pending orders work now.
+- Supabase's built-in email OTP is suitable for early testing but has sending limits.
+  In Supabase Authentication > Email Templates, include {{ .Token }} in the magic-link
+  template if you want customers to type a 6-digit code. Magic-link confirmation is
+  also accepted at https://kaoma.in/account.
+- Prices are entered in INR. The admin-configured fixed rates create estimated display
+  currencies. Update the rates when required; live FX needs an external rates service.

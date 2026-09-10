@@ -20,6 +20,7 @@ import {
   Globe2,
   Menu,
   ChevronDown,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
@@ -41,8 +42,10 @@ import {
 
 type Product = {
   id: string;
+  slug: string;
   name: string;
   category: string;
+  categoryNames: string[];
   price: number;
   oldPrice?: number;
   badge: string;
@@ -51,11 +54,36 @@ type Product = {
   image_urls?: string[];
   sizes?: string[];
   colours?: string[];
-  stock_quantity:number;
+  colour_image_map?: Record<string, string>;
+  related_product_ids?: string[];
+  enable_add_to_cart?: boolean;
+  enable_buy_now?: boolean;
+  enable_wishlist?: boolean;
+  stock_quantity: number;
 };
-type StorefrontSettings={announcement?:string;packaging_message?:string;logo_url?:string;hero_image_url?:string;eyebrow?:string;heading?:string};
-type CartLine={qty:number;size:string;colour:string};
-type ProductReview={id:string;product_id:string;reviewer_name:string;rating:number;title?:string;body:string};
+type Commerce = {
+  rates?: Record<string, number>;
+  shipping?: { India?: number; International?: number; free_above?: number };
+  payments?: { provider?: string; enabled?: boolean };
+};
+type StorefrontSettings = {
+  announcement?: string;
+  packaging_message?: string;
+  logo_url?: string;
+  hero_image_url?: string;
+  eyebrow?: string;
+  heading?: string;
+  commerce?: Commerce;
+};
+type CartLine = { qty: number; size: string; colour: string };
+type ProductReview = {
+  id: string;
+  product_id: string;
+  reviewer_name: string;
+  rating: number;
+  title?: string;
+  body: string;
+};
 const cats = [
   "Shop all",
   "For Women",
@@ -65,14 +93,19 @@ const cats = [
   "Unique Gifts",
 ];
 const markets = [
-  { country: "India", currency: "INR", symbol: "₹" },
-  { country: "United States", currency: "USD", symbol: "$" },
-  { country: "United Kingdom", currency: "GBP", symbol: "£" },
-  { country: "European Union", currency: "EUR", symbol: "€" },
-  { country: "United Arab Emirates", currency: "AED", symbol: "د.إ" },
-  { country: "Australia", currency: "AUD", symbol: "A$" },
-  { country: "Canada", currency: "CAD", symbol: "C$" },
-  { country: "Singapore", currency: "SGD", symbol: "S$" },
+  { country: "India", currency: "INR", symbol: "₹", rate: 1 },
+  { country: "United States", currency: "USD", symbol: "$", rate: 0.012 },
+  { country: "United Kingdom", currency: "GBP", symbol: "£", rate: 0.0094 },
+  { country: "European Union", currency: "EUR", symbol: "€", rate: 0.011 },
+  {
+    country: "United Arab Emirates",
+    currency: "AED",
+    symbol: "د.إ",
+    rate: 0.044,
+  },
+  { country: "Australia", currency: "AUD", symbol: "A$", rate: 0.018 },
+  { country: "Canada", currency: "CAD", symbol: "C$", rate: 0.016 },
+  { country: "Singapore", currency: "SGD", symbol: "S$", rate: 0.016 },
 ];
 export default function Home() {
   const [active, setActive] = useState("Shop all"),
@@ -85,27 +118,92 @@ export default function Home() {
     [cart, setCart] = useState<Record<string, CartLine>>({}),
     [products, setProducts] = useState<Product[]>([]),
     [selectedProduct, setSelectedProduct] = useState<Product | null>(null),
-    [selectedSize,setSelectedSize]=useState(""),
-    [selectedColour,setSelectedColour]=useState(""),
-    [reviews,setReviews]=useState<ProductReview[]>([]),
-    [placingOrder,setPlacingOrder]=useState(false),
-    [customerEmail,setCustomerEmail]=useState(""),
-    [storefront,setStorefront]=useState<StorefrontSettings>({}),
+    [selectedSize, setSelectedSize] = useState(""),
+    [selectedColour, setSelectedColour] = useState(""),
+    [reviews, setReviews] = useState<ProductReview[]>([]),
+    [placingOrder, setPlacingOrder] = useState(false),
+    [customerEmail, setCustomerEmail] = useState(""),
+    [storefront, setStorefront] = useState<StorefrontSettings>({}),
+    [wishlist, setWishlist] = useState<string[]>([]),
     [market, setMarket] = useState(markets[0]);
   useEffect(() => {
-    setCustomerEmail(localStorage.getItem("kaoma_customer_email")||"");
+    setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
+    setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
     if (!supabaseReady) return;
-    db("products?select=id,name,description,price,image_urls,sizes,colours,stock_quantity,status,featured,best_seller,new_arrival,categories(name)&status=eq.active&order=created_at.desc")
-      .then((rows) => setProducts(rows.map((p: Record<string, unknown>) => ({ id:String(p.id), name:String(p.name), description:String(p.description||""), price:Number(p.price||0), category:String((p.categories as {name?:string}|null)?.name||"Shop all"), image_urls:(p.image_urls as string[])||[],sizes:(p.sizes as string[])||[],colours:(p.colours as string[])||[],stock_quantity:Number(p.stock_quantity||0), badge:(p.best_seller?"Best seller":p.new_arrival?"New":"Featured"), tone:"rose" }))))
+    Promise.all([
+      db("products?select=*&status=eq.active&order=created_at.desc"),
+      db("categories?select=id,name&active=eq.true"),
+    ])
+      .then(([rows, categoryRows]) => {
+        const names = new Map(
+          categoryRows.map((c: { id: string; name: string }) => [c.id, c.name]),
+        );
+        setProducts(
+          rows.map((p: Record<string, unknown>) => {
+            const ids = ((p.category_ids as string[]) || []).length
+              ? (p.category_ids as string[])
+              : p.category_id
+                ? [String(p.category_id)]
+                : [];
+            return {
+              id: String(p.id),
+              slug: String(p.slug || p.id),
+              name: String(p.name),
+              description: String(p.description || ""),
+              price: Number(p.price || 0),
+              category: String(names.get(ids[0]) || "Shop all"),
+              categoryNames: ids
+                .map((id) => String(names.get(id) || ""))
+                .filter(Boolean),
+              image_urls: (p.image_urls as string[]) || [],
+              sizes: (p.sizes as string[]) || [],
+              colours: (p.colours as string[]) || [],
+              colour_image_map:
+                (p.colour_image_map as Record<string, string>) || {},
+              related_product_ids: (p.related_product_ids as string[]) || [],
+              enable_add_to_cart: p.enable_add_to_cart !== false,
+              enable_buy_now: p.enable_buy_now !== false,
+              enable_wishlist: p.enable_wishlist !== false,
+              stock_quantity: Number(p.stock_quantity || 0),
+              badge: p.best_seller
+                ? "Best seller"
+                : p.new_arrival
+                  ? "New"
+                  : "Featured",
+              tone: "rose",
+            };
+          }),
+        );
+      })
       .catch(() => {});
-    db("reviews?select=id,product_id,reviewer_name,rating,title,body&status=eq.approved&order=created_at.desc").then(setReviews).catch(()=>{});
-    db("site_settings?select=key,value&key=in.(branding,homepage)").then((rows)=>setStorefront(rows.reduce((all:StorefrontSettings,row:{value?:StorefrontSettings})=>({...all,...row.value}),{}))).catch(()=>{});
+    db(
+      "reviews?select=id,product_id,reviewer_name,rating,title,body&status=eq.approved&order=created_at.desc",
+    )
+      .then(setReviews)
+      .catch(() => {});
+    db("site_settings?select=key,value&key=in.(branding,homepage,commerce)")
+      .then((rows) =>
+        setStorefront(
+          rows.reduce(
+            (
+              all: StorefrontSettings,
+              row: { key: string; value?: StorefrontSettings | Commerce },
+            ) =>
+              row.key === "commerce"
+                ? { ...all, commerce: row.value as Commerce }
+                : { ...all, ...row.value },
+            {},
+          ),
+        ),
+      )
+      .catch(() => {});
   }, []);
   const filtered = useMemo(
     () =>
       products.filter(
         (p) =>
           (active === "Shop all" ||
+            p.categoryNames.includes(active) ||
             p.category === active ||
             (active === "Clothing" &&
               ["Clothing", "Lingerie", "Sleepwear"].includes(p.category))) &&
@@ -113,9 +211,24 @@ export default function Home() {
       ),
     [active, search],
   );
-  const items = products.filter((p) => cart[p.id]).map((p) => ({ ...p, ...cart[p.id] })),
+  const rate = storefront.commerce?.rates?.[market.currency] || market.rate,
+    formatPrice = (amount: number) =>
+      new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: market.currency,
+        maximumFractionDigits: market.currency === "INR" ? 0 : 2,
+      }).format(amount * rate);
+  const items = products
+      .filter((p) => cart[p.id])
+      .map((p) => ({ ...p, ...cart[p.id] })),
     count = Object.values(cart).reduce((a, b) => a + b.qty, 0),
-    subtotal = items.reduce((s, p) => s + p.price * p.qty, 0);
+    subtotal = items.reduce((s, p) => s + p.price * p.qty, 0),
+    shipping =
+      subtotal >= (storefront.commerce?.shipping?.free_above || 5000)
+        ? 0
+        : market.country === "India"
+          ? storefront.commerce?.shipping?.India || 99
+          : storefront.commerce?.shipping?.International || 1499;
   const go = (c: string) => {
     setActive(c);
     setTimeout(
@@ -124,31 +237,399 @@ export default function Home() {
       20,
     );
   };
-  const add = (p: Product, buy = false, size=selectedSize||p.sizes?.[0]||"Standard",colour=selectedColour||p.colours?.[0]||"As shown") => {
-    if(p.stock_quantity<1){toast.error("This product is currently out of stock");return}
-    setCart((c) => ({ ...c, [p.id]: {qty:Math.min((c[p.id]?.qty||0)+1,p.stock_quantity),size,colour} }));
+  const add = (
+    p: Product,
+    buy = false,
+    size = selectedSize || p.sizes?.[0] || "Standard",
+    colour = selectedColour || p.colours?.[0] || "As shown",
+  ) => {
+    if (p.stock_quantity < 1) {
+      toast.error("This product is currently out of stock");
+      return;
+    }
+    setCart((c) => ({
+      ...c,
+      [p.id]: {
+        qty: Math.min((c[p.id]?.qty || 0) + 1, p.stock_quantity),
+        size,
+        colour,
+      },
+    }));
     toast.success(p.name + " added to your bag");
-    setSelectedProduct(null);buy ? openCheckout() : setCartOpen(true);
+    closeProduct();
+    buy ? openCheckout() : setCartOpen(true);
   };
-  const openProduct=(p:Product)=>{setSelectedProduct(p);setSelectedSize(p.sizes?.[0]||"");setSelectedColour(p.colours?.[0]||"")};
-  const openCheckout=()=>{if(!localStorage.getItem("kaoma_customer_token")){toast.error("Please sign in before purchasing");setTimeout(()=>location.href="/account",500);return}setCartOpen(false);setCheckout(true)};
+  const openProduct = (p: Product) => {
+    setSelectedProduct(p);
+    setSelectedSize(p.sizes?.[0] || "");
+    setSelectedColour(p.colours?.[0] || "");
+    history.replaceState(null, "", `/?product=${encodeURIComponent(p.slug)}`);
+  };
+  useEffect(() => {
+    if (products.length) {
+      const requested = new URLSearchParams(location.search).get("product");
+      if (requested) {
+        const found = products.find(
+          (p) => p.slug === requested || p.id === requested,
+        );
+        if (found) {
+          setSelectedProduct(found);
+          setSelectedSize(found.sizes?.[0] || "");
+          setSelectedColour(found.colours?.[0] || "");
+        }
+      }
+    }
+  }, [products]);
+  const closeProduct = () => {
+    setSelectedProduct(null);
+    if (new URLSearchParams(location.search).has("product"))
+      history.replaceState(null, "", "/");
+  };
+  const toggleWishlist = (id: string) => {
+    const next = wishlist.includes(id)
+      ? wishlist.filter((x) => x !== id)
+      : [...wishlist, id];
+    setWishlist(next);
+    localStorage.setItem("kaoma_wishlist", JSON.stringify(next));
+    toast.success(
+      next.includes(id) ? "Saved to wishlist" : "Removed from wishlist",
+    );
+  };
+  async function shareProduct(p: Product) {
+    const share = {
+      title: p.name,
+      text: `View ${p.name} at KAOMA`,
+      url: `${location.origin}/?product=${encodeURIComponent(p.slug)}`,
+    };
+    if (navigator.share) await navigator.share(share);
+    else {
+      await navigator.clipboard.writeText(share.url);
+      toast.success("Product link copied");
+    }
+  }
+  const openCheckout = () => {
+    if (!localStorage.getItem("kaoma_customer_token")) {
+      toast.error("Please sign in before purchasing");
+      setTimeout(() => (location.href = "/account"), 500);
+      return;
+    }
+    setCartOpen(false);
+    setCheckout(true);
+  };
   const qty = (id: string, n: number) =>
     setCart((c) => {
       const next = { ...c },
         v = (next[id]?.qty || 0) + n;
-      v > 0 ? (next[id] = {...next[id],qty:v}) : delete next[id];
+      v > 0 ? (next[id] = { ...next[id], qty: v }) : delete next[id];
       return next;
     });
-  async function placeOrder(event:FormEvent<HTMLFormElement>){event.preventDefault();const token=localStorage.getItem("kaoma_customer_token")||"",userId=localStorage.getItem("kaoma_customer_id")||"",email=localStorage.getItem("kaoma_customer_email")||"";if(!token||!userId){toast.error("Please sign in before purchasing");location.href="/account";return}if(!items.length){toast.error("Your bag is empty");return}setPlacingOrder(true);const form=new FormData(event.currentTarget),fullName=`${form.get("first_name")} ${form.get("last_name")}`.trim(),address={line1:String(form.get("address")),city:String(form.get("city")),region:String(form.get("region")),postal_code:String(form.get("postal_code")),country:market.country,phone:String(form.get("phone"))},orderNumber=`KAOMA-${Date.now().toString().slice(-8)}-${crypto.randomUUID().slice(0,4).toUpperCase()}`;try{await db("profiles?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify({user_id:userId,full_name:fullName,email,phone:address.phone,country:address.country,address_line1:address.line1,city:address.city,region:address.region,postal_code:address.postal_code})});const created=await db("orders",token,{method:"POST",body:JSON.stringify({user_id:userId,order_number:orderNumber,customer_email:email,currency:"INR",subtotal,shipping:0,tax:0,total:subtotal,status:"pending",payment_status:"pending",shipping_address:address})});const orderId=created?.[0]?.id;if(!orderId)throw Error("Order could not be created.");await db("order_items",token,{method:"POST",body:JSON.stringify(items.map(item=>({order_id:orderId,product_id:item.id,product_name:item.name,quantity:item.qty,unit_price:item.price,selected_size:item.size,selected_colour:item.colour})))});void fetch("/api/order-email",{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({customerEmail:email,orderNumber})});setCart({});setCheckout(false);toast.success(`Order ${orderNumber} created. Payment confirmation is pending.`)}catch(error){toast.error(error instanceof Error?error.message:"Unable to place order") }finally{setPlacingOrder(false)}}
-  async function submitReview(event:FormEvent<HTMLFormElement>){event.preventDefault();const token=localStorage.getItem("kaoma_customer_token")||"",userId=localStorage.getItem("kaoma_customer_id")||"";if(!token||!userId){toast.error("Sign in to write a verified review");location.href="/account";return}if(!selectedProduct)return;const form=new FormData(event.currentTarget);try{await db("reviews",token,{method:"POST",body:JSON.stringify({product_id:selectedProduct.id,user_id:userId,reviewer_name:String(form.get("reviewer_name")),rating:Number(form.get("rating")),title:String(form.get("title")),body:String(form.get("body")),status:"pending"})});event.currentTarget.reset();toast.success("Review submitted for approval") }catch(error){toast.error(error instanceof Error?error.message:"Unable to submit review")}}
+  async function placeOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = localStorage.getItem("kaoma_customer_token") || "",
+      userId = localStorage.getItem("kaoma_customer_id") || "",
+      email = localStorage.getItem("kaoma_customer_email") || "";
+    if (!token || !userId) {
+      toast.error("Please sign in before purchasing");
+      location.href = "/account";
+      return;
+    }
+    if (!items.length) {
+      toast.error("Your bag is empty");
+      return;
+    }
+    setPlacingOrder(true);
+    const form = new FormData(event.currentTarget),
+      fullName = `${form.get("first_name")} ${form.get("last_name")}`.trim(),
+      address = {
+        line1: String(form.get("address")),
+        city: String(form.get("city")),
+        region: String(form.get("region")),
+        postal_code: String(form.get("postal_code")),
+        country: market.country,
+        phone: String(form.get("phone")),
+      },
+      orderNumber = `KAOMA-${Date.now().toString().slice(-8)}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
+    try {
+      await db("profiles?on_conflict=user_id", token, {
+        method: "POST",
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=representation",
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          full_name: fullName,
+          email,
+          phone: address.phone,
+          country: address.country,
+          address_line1: address.line1,
+          city: address.city,
+          region: address.region,
+          postal_code: address.postal_code,
+        }),
+      });
+      const created = await db("orders", token, {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: userId,
+          order_number: orderNumber,
+          customer_email: email,
+          currency: market.currency,
+          subtotal: subtotal * rate,
+          shipping: shipping * rate,
+          tax: 0,
+          total: (subtotal + shipping) * rate,
+          status: "pending",
+          payment_status: "pending",
+          shipping_address: address,
+        }),
+      });
+      const orderId = created?.[0]?.id;
+      if (!orderId) throw Error("Order could not be created.");
+      await db("order_items", token, {
+        method: "POST",
+        body: JSON.stringify(
+          items.map((item) => ({
+            order_id: orderId,
+            product_id: item.id,
+            product_name: item.name,
+            quantity: item.qty,
+            unit_price: item.price,
+            selected_size: item.size,
+            selected_colour: item.colour,
+          })),
+        ),
+      });
+      void fetch("/api/order-email", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ customerEmail: email, orderNumber }),
+      });
+      setCart({});
+      setCheckout(false);
+      toast.success(
+        `Order ${orderNumber} created. Payment confirmation is pending.`,
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to place order",
+      );
+    } finally {
+      setPlacingOrder(false);
+    }
+  }
+  async function submitReview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = localStorage.getItem("kaoma_customer_token") || "",
+      userId = localStorage.getItem("kaoma_customer_id") || "";
+    if (!token || !userId) {
+      toast.error("Sign in to write a verified review");
+      location.href = "/account";
+      return;
+    }
+    if (!selectedProduct) return;
+    const form = new FormData(event.currentTarget);
+    try {
+      await db("reviews", token, {
+        method: "POST",
+        body: JSON.stringify({
+          product_id: selectedProduct.id,
+          user_id: userId,
+          reviewer_name: String(form.get("reviewer_name")),
+          rating: Number(form.get("rating")),
+          title: String(form.get("title")),
+          body: String(form.get("body")),
+          status: "pending",
+        }),
+      });
+      event.currentTarget.reset();
+      toast.success("Review submitted for approval");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to submit review",
+      );
+    }
+  }
   return (
     <main>
       <Toaster position="top-center" richColors />
-      <Dialog open={Boolean(selectedProduct)} onOpenChange={(open) => !open && setSelectedProduct(null)}>
+      <Dialog
+        open={Boolean(selectedProduct)}
+        onOpenChange={(open) => !open && closeProduct()}
+      >
         <DialogContent className="productGalleryDialog">
-          <DialogHeader><DialogTitle>{selectedProduct?.name}</DialogTitle><DialogDescription>{selectedProduct?.description}</DialogDescription></DialogHeader>
-          <div className="customerGallery">{selectedProduct?.image_urls?.map((src,index)=><figure key={src}><div><Image src={src} alt={`${selectedProduct.name} ${index===0?"main image":`promotional image ${index}`}`} fill sizes="(max-width: 700px) 92vw, 45vw" unoptimized/></div><figcaption>{index===0?"Main image":`Promotional image ${index}`}</figcaption></figure>)}</div>
-          {selectedProduct&&<><div className="variantSelectors">{Boolean(selectedProduct.sizes?.length)&&<label>Size<select value={selectedSize} onChange={e=>setSelectedSize(e.target.value)}>{selectedProduct.sizes?.map(size=><option key={size}>{size}</option>)}</select></label>}{Boolean(selectedProduct.colours?.length)&&<label>Colour<select value={selectedColour} onChange={e=>setSelectedColour(e.target.value)}>{selectedProduct.colours?.map(colour=><option key={colour}>{colour}</option>)}</select></label>}</div><p className="stockLine">{selectedProduct.stock_quantity>0?`${selectedProduct.stock_quantity} in stock`:"Out of stock"}</p><div className="galleryBuy"><button className="primary" onClick={()=>add(selectedProduct)}>Add to cart</button><button className="primary" onClick={()=>add(selectedProduct,true)}>Buy now</button></div><section className="productReviews"><h3>Customer reviews</h3>{reviews.filter(review=>review.product_id===selectedProduct.id).map(review=><article key={review.id}><b>{"★".repeat(review.rating)} · {review.reviewer_name}</b><span>{review.title||review.body}</span></article>)}{!reviews.some(review=>review.product_id===selectedProduct.id)&&<p>No reviews yet.</p>}<form onSubmit={submitReview}><input name="reviewer_name" placeholder="Your name" required/><select name="rating" defaultValue="5"><option value="5">5 stars</option><option value="4">4 stars</option><option value="3">3 stars</option><option value="2">2 stars</option><option value="1">1 star</option></select><input name="title" placeholder="Review title"/><textarea name="body" placeholder="Share your experience" required/><button className="outlineReview">Submit verified review</button></form></section></>}
+          <DialogHeader>
+            <DialogTitle>{selectedProduct?.name}</DialogTitle>
+            <DialogDescription>
+              {selectedProduct?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="customerGallery">
+            {selectedProduct?.image_urls?.map((src, index) => (
+              <figure key={src}>
+                <div>
+                  <Image
+                    src={src}
+                    alt={`${selectedProduct.name} ${index === 0 ? "main image" : `promotional image ${index}`}`}
+                    fill
+                    sizes="(max-width: 700px) 92vw, 45vw"
+                    unoptimized
+                  />
+                </div>
+                <figcaption>
+                  {index === 0 ? "Main image" : `Promotional image ${index}`}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+          {selectedProduct && (
+            <>
+              <div className="variantSelectors">
+                {Boolean(selectedProduct.sizes?.length) && (
+                  <label>
+                    Size
+                    <select
+                      value={selectedSize}
+                      onChange={(e) => setSelectedSize(e.target.value)}
+                    >
+                      {selectedProduct.sizes?.map((size) => (
+                        <option key={size}>{size}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {Boolean(selectedProduct.colours?.length) && (
+                  <label>
+                    Colour
+                    <select
+                      value={selectedColour}
+                      onChange={(e) => setSelectedColour(e.target.value)}
+                    >
+                      {selectedProduct.colours?.map((colour) => (
+                        <option key={colour}>{colour}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+              {selectedColour &&
+                selectedProduct.colour_image_map?.[selectedColour] && (
+                  <p className="colourPreview">
+                    Selected colour: <b>{selectedColour}</b> · its matching
+                    image is shown in the gallery.
+                  </p>
+                )}
+              <p className="stockLine">
+                {selectedProduct.stock_quantity > 0
+                  ? `${selectedProduct.stock_quantity} in stock`
+                  : "Out of stock"}
+              </p>
+              <div className="galleryBuy">
+                {selectedProduct.enable_add_to_cart !== false && (
+                  <button
+                    className="primary"
+                    onClick={() => add(selectedProduct)}
+                  >
+                    Add to cart
+                  </button>
+                )}
+                {selectedProduct.enable_buy_now !== false && (
+                  <button
+                    className="primary"
+                    onClick={() => add(selectedProduct, true)}
+                  >
+                    Buy now
+                  </button>
+                )}
+                {selectedProduct.enable_wishlist !== false && (
+                  <button
+                    className="outlineReview"
+                    onClick={() => toggleWishlist(selectedProduct.id)}
+                  >
+                    <Heart />{" "}
+                    {wishlist.includes(selectedProduct.id)
+                      ? "Saved"
+                      : "Wishlist"}
+                  </button>
+                )}
+                <button
+                  className="outlineReview"
+                  onClick={() => void shareProduct(selectedProduct)}
+                >
+                  <Share2 /> Share
+                </button>
+              </div>
+              {Boolean(selectedProduct.related_product_ids?.length) && (
+                <section className="relatedProducts">
+                  <h3>Similar choices</h3>
+                  <div>
+                    {products
+                      .filter((p) =>
+                        selectedProduct.related_product_ids?.includes(p.id),
+                      )
+                      .map((p) => (
+                        <button key={p.id} onClick={() => openProduct(p)}>
+                          {p.image_urls?.[0] && (
+                            <Image
+                              src={p.image_urls[0]}
+                              alt=""
+                              width={72}
+                              height={72}
+                              unoptimized
+                            />
+                          )}
+                          <span>
+                            {p.name}
+                            <small>{formatPrice(p.price)}</small>
+                          </span>
+                        </button>
+                      ))}
+                  </div>
+                </section>
+              )}
+              <section className="productReviews">
+                <h3>Customer reviews</h3>
+                {reviews
+                  .filter((review) => review.product_id === selectedProduct.id)
+                  .map((review) => (
+                    <article key={review.id}>
+                      <b>
+                        {"★".repeat(review.rating)} · {review.reviewer_name}
+                      </b>
+                      <span>{review.title || review.body}</span>
+                    </article>
+                  ))}
+                {!reviews.some(
+                  (review) => review.product_id === selectedProduct.id,
+                ) && <p>No reviews yet.</p>}
+                <form onSubmit={submitReview}>
+                  <input
+                    name="reviewer_name"
+                    placeholder="Your name"
+                    required
+                  />
+                  <select name="rating" defaultValue="5">
+                    <option value="5">5 stars</option>
+                    <option value="4">4 stars</option>
+                    <option value="3">3 stars</option>
+                    <option value="2">2 stars</option>
+                    <option value="1">1 star</option>
+                  </select>
+                  <input name="title" placeholder="Review title" />
+                  <textarea
+                    name="body"
+                    placeholder="Share your experience"
+                    required
+                  />
+                  <button className="outlineReview">
+                    Submit verified review
+                  </button>
+                </form>
+              </section>
+            </>
+          )}
         </DialogContent>
       </Dialog>
       <Dialog open={age} onOpenChange={() => {}}>
@@ -180,13 +661,22 @@ export default function Home() {
         </DialogContent>
       </Dialog>
       <div className="announce">
-        <b>{storefront.announcement||"OPEN 24/7 — INCLUDING SUNDAYS"}</b>
+        <b>{storefront.announcement || "OPEN 24/7 — INCLUDING SUNDAYS"}</b>
         <i />
-        <PackageCheck /> {storefront.packaging_message||"DISCREET PACKAGING · INDIA & INTERNATIONAL DELIVERY"}
+        <PackageCheck />{" "}
+        {storefront.packaging_message ||
+          "DISCREET PACKAGING · INDIA & INTERNATIONAL DELIVERY"}
       </div>
       <header>
         <a className="logo" href="/" aria-label="KAOMA home">
-          <Image className="logoImage" src={storefront.logo_url||"/kaoma-logo.webp"} alt="KAOMA" width={190} height={54} unoptimized />
+          <Image
+            className="logoImage"
+            src={storefront.logo_url || "/kaoma-logo.webp"}
+            alt="KAOMA"
+            width={190}
+            height={54}
+            unoptimized
+          />
         </a>
         <nav>
           <a href="/">Home</a>
@@ -196,7 +686,12 @@ export default function Home() {
           <a href="/contact">Contact Us</a>
         </nav>
         <div className="actions">
-          <button className="menuButton" title="Open menu" aria-label="Open menu" onClick={() => setMenuOpen(true)}>
+          <button
+            className="menuButton"
+            title="Open menu"
+            aria-label="Open menu"
+            onClick={() => setMenuOpen(true)}
+          >
             <Menu />
           </button>
           <label
@@ -267,7 +762,9 @@ export default function Home() {
         <SheetContent side="left" className="mobileMenu">
           <SheetHeader>
             <SheetTitle>KAOMA</SheetTitle>
-            <SheetDescription>Explore our private adult store.</SheetDescription>
+            <SheetDescription>
+              Explore our private adult store.
+            </SheetDescription>
           </SheetHeader>
           <nav className="mobileNav">
             <a href="/">Home</a>
@@ -281,7 +778,7 @@ export default function Home() {
       </Sheet>
       <section className="hero">
         <Image
-          src={storefront.hero_image_url||"/kamadeva-rati-hero.webp"}
+          src={storefront.hero_image_url || "/kamadeva-rati-hero.webp"}
           alt="Elegant artistic interpretation of Kamadeva and Rati in a flowering spring garden"
           fill
           priority
@@ -291,8 +788,16 @@ export default function Home() {
         />
         <div className="shade" />
         <div className="heroCopy">
-          <p>{storefront.eyebrow||"DESIRE · BEAUTY · CONNECTION"}</p>
-          <h1>{storefront.heading||<>The art of pleasure,<br/><em>beautifully expressed.</em></>}</h1>
+          <p>{storefront.eyebrow || "DESIRE · BEAUTY · CONNECTION"}</p>
+          <h1>
+            {storefront.heading || (
+              <>
+                The art of pleasure,
+                <br />
+                <em>beautifully expressed.</em>
+              </>
+            )}
+          </h1>
           <span>
             Inspired by Kāma—the celebration of love, desire and aesthetic
             enjoyment—through intimate dressing, thoughtful wellness and
@@ -366,10 +871,15 @@ export default function Home() {
             aria-expanded={filtersOpen}
             aria-controls="catalog-filters"
           >
-            <span><SlidersHorizontal /> Filters</span>
+            <span>
+              <SlidersHorizontal /> Filters
+            </span>
             <ChevronDown className={filtersOpen ? "turned" : ""} />
           </button>
-          <aside id="catalog-filters" className={`filterSide ${filtersOpen ? "filterOpen" : ""}`}>
+          <aside
+            id="catalog-filters"
+            className={`filterSide ${filtersOpen ? "filterOpen" : ""}`}
+          >
             <h3>
               <SlidersHorizontal /> Filters
             </h3>
@@ -427,28 +937,59 @@ export default function Home() {
               {filtered.map((p) => (
                 <article key={p.id}>
                   <div className={"art " + p.tone}>
-                    {p.image_urls?.[0] && <Image className="productImage" src={p.image_urls[0]} alt={p.name} fill sizes="(max-width: 700px) 100vw, 25vw" unoptimized />}
+                    {p.image_urls?.[0] && (
+                      <Image
+                        className="productImage"
+                        src={p.image_urls[0]}
+                        alt={p.name}
+                        fill
+                        sizes="(max-width: 700px) 100vw, 25vw"
+                        unoptimized
+                      />
+                    )}
                     <span>{p.badge}</span>
-                    <button>
-                      <Heart />
-                    </button>
+                    {p.enable_wishlist !== false && (
+                      <button
+                        onClick={() => toggleWishlist(p.id)}
+                        aria-label="Add to wishlist"
+                      >
+                        <Heart />
+                      </button>
+                    )}
                     <i />
                     <strong>{p.category}</strong>
-                    {p.image_urls&&p.image_urls.length>1&&<button className="galleryCount" onClick={()=>openProduct(p)}>{p.image_urls.length} photos</button>}
+                    {p.image_urls && p.image_urls.length > 1 && (
+                      <button
+                        className="galleryCount"
+                        onClick={() => openProduct(p)}
+                      >
+                        {p.image_urls.length} photos
+                      </button>
+                    )}
                   </div>
                   <div className="info">
                     <small>{p.category}</small>
                     <h3>{p.name}</h3>
                     <p>{p.description}</p>
                     <div className="price">
-                      <b>₹{p.price.toLocaleString("en-IN")}</b>
-                      {p.oldPrice && (
-                        <del>₹{p.oldPrice.toLocaleString("en-IN")}</del>
-                      )}
+                      <b>{formatPrice(p.price)}</b>
+                      {p.oldPrice && <del>{formatPrice(p.oldPrice)}</del>}
                     </div>
                     <div className="productBtns">
-                      <button onClick={() => p.image_urls?.length?openProduct(p):add(p)}>{p.image_urls?.length?"View details":"Add to cart"}</button>
-                      <button onClick={() => add(p, true)}>Buy now</button>
+                      <button
+                        onClick={() =>
+                          p.image_urls?.length ? openProduct(p) : add(p)
+                        }
+                      >
+                        {p.image_urls?.length
+                          ? "View details"
+                          : p.enable_add_to_cart !== false
+                            ? "Add to cart"
+                            : "View product"}
+                      </button>
+                      {p.enable_buy_now !== false && (
+                        <button onClick={() => add(p, true)}>Buy now</button>
+                      )}
                     </div>
                   </div>
                 </article>
@@ -570,8 +1111,10 @@ export default function Home() {
                     <i className={p.tone} />
                     <div>
                       <b>{p.name}</b>
-                      <span>₹{p.price.toLocaleString("en-IN")}</span>
-                      <span className="cartVariant">Size: {p.size} · Colour: {p.colour}</span>
+                      <span>{formatPrice(p.price)}</span>
+                      <span className="cartVariant">
+                        Size: {p.size} · Colour: {p.colour}
+                      </span>
                       <small>
                         <button onClick={() => qty(p.id, -1)}>
                           <Minus />
@@ -600,7 +1143,7 @@ export default function Home() {
               </div>
               <div className="total">
                 <span>Subtotal</span>
-                <b>₹{subtotal.toLocaleString("en-IN")}</b>
+                <b>{formatPrice(subtotal)}</b>
               </div>
               <button
                 className="primary full"
@@ -635,76 +1178,129 @@ export default function Home() {
               selected destination when live payments are connected.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={placeOrder} className="checkoutForm"><div className="steps">
-            <b>1 Contact</b>
-            <span>2 Delivery</span>
-            <span>3 Payment</span>
-          </div>
-          <div className="two">
+          <form onSubmit={placeOrder} className="checkoutForm">
+            <div className="steps">
+              <b>1 Contact</b>
+              <span>2 Delivery</span>
+              <span>3 Payment</span>
+            </div>
+            <div className="two">
+              <label>
+                First name
+                <input
+                  name="first_name"
+                  autoComplete="given-name"
+                  placeholder="First name"
+                  required
+                />
+              </label>
+              <label>
+                Last name
+                <input
+                  name="last_name"
+                  autoComplete="family-name"
+                  placeholder="Last name"
+                  required
+                />
+              </label>
+            </div>
             <label>
-              First name
-              <input name="first_name" autoComplete="given-name" placeholder="First name" required />
+              Email
+              <input
+                type="email"
+                autoComplete="email"
+                value={customerEmail}
+                readOnly
+              />
             </label>
             <label>
-              Last name
-              <input name="last_name" autoComplete="family-name" placeholder="Last name" required />
-            </label>
-          </div>
-          <label>
-            Email
-            <input type="email" autoComplete="email" value={customerEmail} readOnly />
-          </label>
-          <label>
-            Phone, including country code
-            <input name="phone" type="tel" autoComplete="tel" placeholder="+91 98765 43210" required />
-          </label>
-          <label>
-            Country or region
-            <select
-              value={market.currency}
-              onChange={(e) =>
-                setMarket(
-                  markets.find((m) => m.currency === e.target.value) ??
-                    markets[0],
-                )
-              }
-            >
-              {markets.map((m) => (
-                <option key={m.currency} value={m.currency}>
-                  {m.country}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Street address
-            <input name="address" autoComplete="street-address" placeholder="House number and street" required />
-          </label>
-          <div className="two">
-            <label>
-              City
-              <input name="city" autoComplete="address-level2" placeholder="City" required />
+              Phone, including country code
+              <input
+                name="phone"
+                type="tel"
+                autoComplete="tel"
+                placeholder="+91 98765 43210"
+                required
+              />
             </label>
             <label>
-              State / Province
-              <input name="region" autoComplete="address-level1" placeholder="State or province" required />
+              Country or region
+              <select
+                value={market.currency}
+                onChange={(e) =>
+                  setMarket(
+                    markets.find((m) => m.currency === e.target.value) ??
+                      markets[0],
+                  )
+                }
+              >
+                {markets.map((m) => (
+                  <option key={m.currency} value={m.currency}>
+                    {m.country}
+                  </option>
+                ))}
+              </select>
             </label>
-          </div>
-          <label>
-            Postal / ZIP code
-            <input name="postal_code" autoComplete="postal-code" placeholder="Postal or ZIP code" required />
-          </label>
-          <p className="checkoutMarket">
-            <Globe2 /> Checkout currency:{" "}
-            <b>
-              {market.currency} ({market.symbol})
-            </b>
-          </p>
-          <div className="checkoutTotal"><span>Order total</span><b>₹{subtotal.toLocaleString("en-IN")}</b></div>
-          <button className="primary full" disabled={placingOrder}>{placingOrder?"Creating secure order…":"Place order — payment pending"}</button>
-          <p className="secure">
-            <LockKeyhole /> Your details remain private and encrypted.
-          </p>
+            <label>
+              Street address
+              <input
+                name="address"
+                autoComplete="street-address"
+                placeholder="House number and street"
+                required
+              />
+            </label>
+            <div className="two">
+              <label>
+                City
+                <input
+                  name="city"
+                  autoComplete="address-level2"
+                  placeholder="City"
+                  required
+                />
+              </label>
+              <label>
+                State / Province
+                <input
+                  name="region"
+                  autoComplete="address-level1"
+                  placeholder="State or province"
+                  required
+                />
+              </label>
+            </div>
+            <label>
+              Postal / ZIP code
+              <input
+                name="postal_code"
+                autoComplete="postal-code"
+                placeholder="Postal or ZIP code"
+                required
+              />
+            </label>
+            <p className="checkoutMarket">
+              <Globe2 /> Checkout currency:{" "}
+              <b>
+                {market.currency} ({market.symbol})
+              </b>
+            </p>
+            <div className="checkoutTotal">
+              <span>Subtotal</span>
+              <b>{formatPrice(subtotal)}</b>
+              <span>Estimated shipping</span>
+              <b>{shipping ? formatPrice(shipping) : "Free"}</b>
+              <span>Order total</span>
+              <b>{formatPrice(subtotal + shipping)}</b>
+            </div>
+            <button className="primary full" disabled={placingOrder}>
+              {placingOrder
+                ? "Creating secure order…"
+                : "Place order — payment pending"}
+            </button>
+            <p className="secure">
+              <LockKeyhole /> Your details remain private and encrypted.
+            </p>
           </form>
         </DialogContent>
       </Dialog>

@@ -11,28 +11,114 @@ export async function signIn(email: string, password: string) {
     body: JSON.stringify({ email, password }),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error_description || data.msg || "Sign in failed.");
+  if (!response.ok)
+    throw new Error(data.error_description || data.msg || "Sign in failed.");
   return data as { access_token: string; user: { id: string; email?: string } };
 }
 
-export async function signUp(email:string,password:string,name:string){
- if(!url||!key)throw new Error("Supabase is not configured yet.");
- const redirectTo=encodeURIComponent("https://kaoma.in/account");
- const response=await fetch(`${url}/auth/v1/signup?redirect_to=${redirectTo}`,{method:"POST",headers:{apikey:key,"Content-Type":"application/json"},body:JSON.stringify({email,password,data:{full_name:name}})});
- const data=await response.json();if(!response.ok)throw new Error(data.msg||data.error_description||"Account creation failed.");return data;
+export async function signUp(email: string, password: string, name: string) {
+  if (!url || !key) throw new Error("Supabase is not configured yet.");
+  const redirectTo = encodeURIComponent("https://kaoma.in/account");
+  const response = await fetch(
+    `${url}/auth/v1/signup?redirect_to=${redirectTo}`,
+    {
+      method: "POST",
+      headers: { apikey: key, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, data: { full_name: name } }),
+    },
+  );
+  const data = await response.json();
+  if (!response.ok)
+    throw new Error(
+      data.msg || data.error_description || "Account creation failed.",
+    );
+  return data;
 }
-export async function resetPassword(email:string){
- if(!url||!key)throw new Error("Supabase is not configured yet.");
- const redirectTo=encodeURIComponent("https://kaoma.in/account");
- const response=await fetch(`${url}/auth/v1/recover?redirect_to=${redirectTo}`,{method:"POST",headers:{apikey:key,"Content-Type":"application/json"},body:JSON.stringify({email,gotrue_meta_security:{captcha_token:null}})});
- if(!response.ok)throw new Error((await response.json()).msg||"Reset request failed.");
+export async function resetPassword(email: string) {
+  if (!url || !key) throw new Error("Supabase is not configured yet.");
+  const redirectTo = encodeURIComponent("https://kaoma.in/account");
+  const response = await fetch(
+    `${url}/auth/v1/recover?redirect_to=${redirectTo}`,
+    {
+      method: "POST",
+      headers: { apikey: key, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        gotrue_meta_security: { captcha_token: null },
+      }),
+    },
+  );
+  if (!response.ok)
+    throw new Error((await response.json()).msg || "Reset request failed.");
 }
 
-export async function uploadProductImage(file:File,token:string){
- if(!url||!key)throw new Error("Supabase is not configured yet.");
- const safe=file.name.toLowerCase().replace(/[^a-z0-9.]+/g,"-"); const path=`${crypto.randomUUID()}-${safe}`;
- const response=await fetch(`${url}/storage/v1/object/product-images/${path}`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":file.type,"x-upsert":"false"},body:file});
- if(!response.ok)throw new Error((await response.text())||"Image upload failed.");return `${url}/storage/v1/object/public/product-images/${path}`;
+export async function sendEmailOtp(email: string, name = "") {
+  if (!url || !key) throw new Error("Supabase is not configured yet.");
+  const redirectTo = encodeURIComponent("https://kaoma.in/account");
+  const response = await fetch(`${url}/auth/v1/otp?redirect_to=${redirectTo}`, {
+    method: "POST",
+    headers: { apikey: key, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email,
+      create_user: true,
+      data: { full_name: name },
+    }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(
+      data.msg ||
+        data.error_description ||
+        "Unable to send the secure email code.",
+    );
+  }
+}
+
+export async function verifyEmailOtp(email: string, token: string) {
+  if (!url || !key) throw new Error("Supabase is not configured yet.");
+  const response = await fetch(`${url}/auth/v1/verify`, {
+    method: "POST",
+    headers: { apikey: key, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, token, type: "email" }),
+  });
+  const data = await response.json();
+  if (!response.ok)
+    throw new Error(
+      data.msg || data.error_description || "The code is invalid or expired.",
+    );
+  return data as { access_token: string; user: { id: string; email?: string } };
+}
+
+export async function getCurrentUser(token: string) {
+  if (!url || !key) throw new Error("Supabase is not configured yet.");
+  const response = await fetch(`${url}/auth/v1/user`, {
+    headers: { apikey: key, Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.msg || "Unable to read account.");
+  return data as { id: string; email?: string };
+}
+
+export async function uploadProductImage(file: File, token: string) {
+  if (!url || !key) throw new Error("Supabase is not configured yet.");
+  const safe = file.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
+  const path = `${crypto.randomUUID()}-${safe}`;
+  const response = await fetch(
+    `${url}/storage/v1/object/product-images/${path}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": file.type,
+        "x-upsert": "false",
+      },
+      body: file,
+    },
+  );
+  if (!response.ok)
+    throw new Error((await response.text()) || "Image upload failed.");
+  return `${url}/storage/v1/object/public/product-images/${path}`;
 }
 
 export async function db(path: string, token = "", init: RequestInit = {}) {
@@ -47,7 +133,8 @@ export async function db(path: string, token = "", init: RequestInit = {}) {
       ...(init.headers || {}),
     },
   });
-  if (!response.ok) throw new Error((await response.text()) || "Database request failed.");
+  if (!response.ok)
+    throw new Error((await response.text()) || "Database request failed.");
   if (response.status === 204) return [];
   return response.json();
 }
