@@ -20,7 +20,6 @@ type Profile = {
 };
 export function CustomerAccount() {
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -61,7 +60,7 @@ export function CustomerAccount() {
     setBusy(true);
     setMessage("");
     try {
-      await sendEmailOtp(email, name);
+      await sendEmailOtp(email);
       setCodeSent(true);
       setMessage(
         "We sent a secure sign-in code to your email. If your Supabase template uses a link, you may use that link instead.",
@@ -210,19 +209,10 @@ export function CustomerAccount() {
     );
   return (
     <div className="accountBox">
-      <div className="accountTabs">
-        <button className="active">Email OTP login & sign up</button>
-      </div>
+      <h2>Sign in to KAOMA</h2>
+      <p>Enter your email. We will send you a one-time login code.</p>
       {!codeSent ? (
         <form onSubmit={requestCode}>
-          <label>
-            Full name (new customers)
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoComplete="name"
-            />
-          </label>
           <label>
             Email
             <input
@@ -241,7 +231,7 @@ export function CustomerAccount() {
             </div>
           )}
           <button className="primary" disabled={busy || !supabaseReady}>
-            {busy ? "Sending…" : "Send secure email code"}
+            {busy ? "Sending OTP…" : "Send OTP"}
           </button>
         </form>
       ) : (
@@ -271,8 +261,7 @@ export function CustomerAccount() {
         </form>
       )}
       <p>
-        No paid email plan is required for Supabase&apos;s built-in email
-        authentication during early launch. Sending limits apply.
+          New customers are registered automatically after verifying the OTP. No password is required.
       </p>
     </div>
   );

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
+import { CustomerAccount } from "@/components/customer-account";
 import {
   Dialog,
   DialogContent,
@@ -726,31 +727,8 @@ export default function Home() {
             <Heart />
           </a>
           <Dialog>
-            <DialogTrigger asChild>
-              <button title="Customer login">
-                <UserRound />
-              </button>
-            </DialogTrigger>
-            <DialogContent className="formCard">
-              <DialogHeader>
-                <DialogTitle>Your private account</DialogTitle>
-                <DialogDescription>
-                  Sign in to view orders, save favourites and check out faster.
-                </DialogDescription>
-              </DialogHeader>
-              <label>
-                Email
-                <input type="email" placeholder="you@example.com" />
-              </label>
-              <label>
-                Password
-                <input type="password" placeholder="••••••••" />
-              </label>
-              <button className="primary full">Sign in securely</button>
-              <a className="linkBtn" href="/account">
-                Create a new account
-              </a>
-            </DialogContent>
+            <DialogTrigger asChild><button title="Customer login" aria-label="Open customer login"><UserRound /></button></DialogTrigger>
+            <DialogContent className="formCard otpLoginDialog"><CustomerAccount /></DialogContent>
           </Dialog>
           <button className="bag" onClick={() => setCartOpen(true)}>
             <ShoppingBag />
