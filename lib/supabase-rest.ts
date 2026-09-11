@@ -180,7 +180,10 @@ export async function db(path: string, token = "", init: RequestInit = {}) {
     ...init,
     headers: {
       apikey: key,
-      Authorization: `Bearer ${token || key}`,
+      // New sb_publishable_* keys are API keys, not customer JWTs. Sending one
+      // as a Bearer token makes anonymous catalogue requests fail. Only attach
+      // Authorization when a real signed-in customer/admin token is present.
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       "Content-Type": "application/json",
       Prefer: "return=representation",
       ...(init.headers || {}),
