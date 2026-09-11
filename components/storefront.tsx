@@ -2,6 +2,7 @@
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { db, supabaseReady } from "@/lib/supabase-rest";
+import { worldCountries } from "@/lib/world-countries";
 import {
   Heart,
   Search,
@@ -145,7 +146,8 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
     [storefront, setStorefront] = useState<StorefrontSettings>({}),
     [wishlist, setWishlist] = useState<string[]>([]),
     [market, setMarket] = useState(markets[0]),
-    [phoneCode, setPhoneCode] = useState(markets[0].dialCode);
+    [destinationCode, setDestinationCode] = useState("IN"),
+    [phoneCountryCode, setPhoneCountryCode] = useState("IN");
   useEffect(() => {
     setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
     setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
@@ -272,7 +274,9 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
       ),
     [active, search],
   );
-  const rate = storefront.commerce?.rates?.[market.currency] || market.rate,
+  const destination = worldCountries.find((country) => country.code === destinationCode) ?? worldCountries.find((country) => country.code === "IN")!,
+    phoneCountry = worldCountries.find((country) => country.code === phoneCountryCode) ?? destination,
+    rate = storefront.commerce?.rates?.[market.currency] || market.rate,
     formatPrice = (amount: number) =>
       new Intl.NumberFormat(undefined, {
         style: "currency",
@@ -287,7 +291,7 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
     shipping =
       subtotal >= (storefront.commerce?.shipping?.free_above || 5000)
         ? 0
-        : market.country === "India"
+        : destination.code === "IN"
           ? storefront.commerce?.shipping?.India || 99
           : storefront.commerce?.shipping?.International || 1499;
   const go = (c: string) => {
@@ -413,8 +417,9 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
         city: String(form.get("city")),
         region: String(form.get("region")),
         postal_code: String(form.get("postal_code")),
-        country: market.country,
-        phone: `${String(form.get("phone_code") || phoneCode)} ${String(form.get("phone_number") || "").trim()}`.trim(),
+        country: destination.name,
+        country_code: destination.code,
+        phone: `${phoneCountry.dialCode} ${String(form.get("phone_number") || "").trim()}`.trim(),
       },
       checkoutItems = items.map((item) => ({ id: item.id, qty: item.qty, size: item.size, colour: item.colour }));
     try {
@@ -759,11 +764,11 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
           </button>
           <label
             className="market"
-            title="Choose shipping country and currency"
+            title="Choose checkout currency"
           >
             <Globe2 />
             <select
-              aria-label="Shipping country and currency"
+              aria-label="Checkout currency"
               value={market.currency}
               onChange={(e) =>
                 setMarket(
@@ -1254,14 +1259,14 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
               Phone number
               <div className="checkoutPhone">
                 <select
-                  name="phone_code"
-                  value={phoneCode}
-                  onChange={(e) => setPhoneCode(e.target.value)}
+                  name="phone_country"
+                  value={phoneCountryCode}
+                  onChange={(e) => setPhoneCountryCode(e.target.value)}
                   aria-label="Country calling code"
                 >
-                  {markets.map((m) => (
-                    <option key={`${m.currency}-phone`} value={m.dialCode}>
-                      {m.dialCode} · {m.country}
+                  {worldCountries.map((country) => (
+                    <option key={`${country.code}-phone`} value={country.code}>
+                      {country.dialCode} · {country.name}
                     </option>
                   ))}
                 </select>
@@ -1279,18 +1284,19 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
             <label>
               Country or region
               <select
-                value={market.currency}
+                name="country"
+                value={destinationCode}
                 onChange={(e) => {
-                  const nextMarket =
-                    markets.find((m) => m.currency === e.target.value) ??
-                    markets[0];
-                  setMarket(nextMarket);
-                  setPhoneCode(nextMarket.dialCode);
+                  const nextCountry = worldCountries.find(
+                    (country) => country.code === e.target.value,
+                  );
+                  setDestinationCode(e.target.value);
+                  if (nextCountry) setPhoneCountryCode(nextCountry.code);
                 }}
               >
-                {markets.map((m) => (
-                  <option key={m.currency} value={m.currency}>
-                    {m.country}
+                {worldCountries.map((country) => (
+                  <option key={country.code} value={country.code}>
+                    {country.name}
                   </option>
                 ))}
               </select>
