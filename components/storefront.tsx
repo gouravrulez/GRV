@@ -111,19 +111,20 @@ const cats = [
   "Unique Gifts",
 ];
 const markets = [
-  { country: "India", currency: "INR", symbol: "₹", rate: 1 },
-  { country: "United States", currency: "USD", symbol: "$", rate: 0.012 },
-  { country: "United Kingdom", currency: "GBP", symbol: "£", rate: 0.0094 },
-  { country: "European Union", currency: "EUR", symbol: "€", rate: 0.011 },
+  { country: "India", currency: "INR", symbol: "₹", rate: 1, dialCode: "+91" },
+  { country: "United States", currency: "USD", symbol: "$", rate: 0.012, dialCode: "+1" },
+  { country: "United Kingdom", currency: "GBP", symbol: "£", rate: 0.0094, dialCode: "+44" },
+  { country: "European Union", currency: "EUR", symbol: "€", rate: 0.011, dialCode: "+49" },
   {
     country: "United Arab Emirates",
     currency: "AED",
     symbol: "د.إ",
     rate: 0.044,
+    dialCode: "+971",
   },
-  { country: "Australia", currency: "AUD", symbol: "A$", rate: 0.018 },
-  { country: "Canada", currency: "CAD", symbol: "C$", rate: 0.016 },
-  { country: "Singapore", currency: "SGD", symbol: "S$", rate: 0.016 },
+  { country: "Australia", currency: "AUD", symbol: "A$", rate: 0.018, dialCode: "+61" },
+  { country: "Canada", currency: "CAD", symbol: "C$", rate: 0.016, dialCode: "+1" },
+  { country: "Singapore", currency: "SGD", symbol: "S$", rate: 0.016, dialCode: "+65" },
 ];
 export default function Storefront({ initialProducts = [] }: { initialProducts?: Product[] }) {
   const [active, setActive] = useState("Shop all"),
@@ -143,7 +144,8 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
     [customerEmail, setCustomerEmail] = useState(""),
     [storefront, setStorefront] = useState<StorefrontSettings>({}),
     [wishlist, setWishlist] = useState<string[]>([]),
-    [market, setMarket] = useState(markets[0]);
+    [market, setMarket] = useState(markets[0]),
+    [phoneCode, setPhoneCode] = useState(markets[0].dialCode);
   useEffect(() => {
     setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
     setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
@@ -306,6 +308,13 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
       toast.error("This product is currently out of stock");
       return;
     }
+    if (buy) {
+      setCart({ [p.id]: { qty: 1, size, colour } });
+      toast.success(p.name + " is ready for checkout");
+      closeProduct();
+      openCheckout();
+      return;
+    }
     setCart((c) => ({
       ...c,
       [p.id]: {
@@ -316,7 +325,7 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
     }));
     toast.success(p.name + " added to your bag");
     closeProduct();
-    buy ? openCheckout() : setCartOpen(true);
+    setCartOpen(true);
   };
   const openProduct = (p: Product) => {
     setSelectedProduct(p);
@@ -405,7 +414,7 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
         region: String(form.get("region")),
         postal_code: String(form.get("postal_code")),
         country: market.country,
-        phone: String(form.get("phone")),
+        phone: `${String(form.get("phone_code") || phoneCode)} ${String(form.get("phone_number") || "").trim()}`.trim(),
       },
       checkoutItems = items.map((item) => ({ id: item.id, qty: item.qty, size: item.size, colour: item.colour }));
     try {
@@ -1242,25 +1251,42 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
               />
             </label>
             <label>
-              Phone, including country code
-              <input
-                name="phone"
-                type="tel"
-                autoComplete="tel"
-                placeholder="+91 98765 43210"
-                required
-              />
+              Phone number
+              <div className="checkoutPhone">
+                <select
+                  name="phone_code"
+                  value={phoneCode}
+                  onChange={(e) => setPhoneCode(e.target.value)}
+                  aria-label="Country calling code"
+                >
+                  {markets.map((m) => (
+                    <option key={`${m.currency}-phone`} value={m.dialCode}>
+                      {m.dialCode} · {m.country}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  name="phone_number"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel-national"
+                  placeholder="Enter phone number"
+                  pattern="[0-9 ()-]{6,20}"
+                  required
+                />
+              </div>
             </label>
             <label>
               Country or region
               <select
                 value={market.currency}
-                onChange={(e) =>
-                  setMarket(
+                onChange={(e) => {
+                  const nextMarket =
                     markets.find((m) => m.currency === e.target.value) ??
-                      markets[0],
-                  )
-                }
+                    markets[0];
+                  setMarket(nextMarket);
+                  setPhoneCode(nextMarket.dialCode);
+                }}
               >
                 {markets.map((m) => (
                   <option key={m.currency} value={m.currency}>
