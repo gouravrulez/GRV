@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { db, supabaseReady } from "@/lib/supabase-rest";
+import { clearCustomerSession, db, getValidCustomerSession, supabaseReady } from "@/lib/supabase-rest";
 import { worldCountries } from "@/lib/world-countries";
 import {
   Heart,
@@ -397,8 +397,8 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
     });
   async function placeOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const token = localStorage.getItem("kaoma_customer_token") || "",
-      userId = localStorage.getItem("kaoma_customer_id") || "",
+    let token = localStorage.getItem("kaoma_customer_token") || "";
+    const userId = localStorage.getItem("kaoma_customer_id") || "",
       email = localStorage.getItem("kaoma_customer_email") || "";
     if (!token || !userId) {
       toast.error("Please sign in before purchasing");
@@ -410,6 +410,16 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
       return;
     }
     setPlacingOrder(true);
+    try {
+      token = await getValidCustomerSession();
+    } catch {
+      clearCustomerSession();
+      setPlacingOrder(false);
+      toast.error("Your session expired. Please sign in again.");
+      setCheckout(false);
+      setTimeout(() => (location.href = "/account"), 700);
+      return;
+    }
     const form = new FormData(event.currentTarget),
       fullName = `${form.get("first_name")} ${form.get("last_name")}`.trim(),
       address = {
@@ -490,14 +500,22 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
   }
   async function submitReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const token = localStorage.getItem("kaoma_customer_token") || "",
-      userId = localStorage.getItem("kaoma_customer_id") || "";
+    let token = localStorage.getItem("kaoma_customer_token") || "";
+    const userId = localStorage.getItem("kaoma_customer_id") || "";
     if (!token || !userId) {
       toast.error("Sign in to write a verified review");
       location.href = "/account";
       return;
     }
     if (!selectedProduct) return;
+    try {
+      token = await getValidCustomerSession();
+    } catch {
+      clearCustomerSession();
+      toast.error("Your session expired. Please sign in again.");
+      setTimeout(() => (location.href = "/account"), 700);
+      return;
+    }
     const form = new FormData(event.currentTarget);
     try {
       await db("reviews", token, {

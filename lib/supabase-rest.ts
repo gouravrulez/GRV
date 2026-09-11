@@ -1,6 +1,13 @@
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+export type CustomerSession = {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  user: { id: string; email?: string };
+};
+
 export const supabaseReady = Boolean(url && key);
 
 export async function signIn(email: string, password: string) {
@@ -88,7 +95,62 @@ export async function verifyEmailOtp(email: string, token: string) {
     throw new Error(
       data.msg || data.error_description || "The code is invalid or expired.",
     );
-  return data as { access_token: string; user: { id: string; email?: string } };
+  return data as CustomerSession;
+}
+
+export async function refreshCustomerSession(refreshToken: string) {
+  if (!url || !key) throw new Error("Supabase is not configured yet.");
+  const response = await fetch(`${url}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: { apikey: key, "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw new Error(data.msg || data.error_description || "Your session has expired. Please sign in again.");
+  return data as CustomerSession;
+}
+
+export function saveCustomerSession(session: CustomerSession, fallbackEmail = "") {
+  localStorage.setItem("kaoma_customer_token", session.access_token);
+  if (session.refresh_token)
+    localStorage.setItem("kaoma_customer_refresh_token", session.refresh_token);
+  localStorage.setItem("kaoma_customer_id", session.user.id);
+  localStorage.setItem("kaoma_customer_email", session.user.email || fallbackEmail);
+}
+
+export function clearCustomerSession() {
+  localStorage.removeItem("kaoma_customer_token");
+  localStorage.removeItem("kaoma_customer_refresh_token");
+  localStorage.removeItem("kaoma_customer_id");
+  localStorage.removeItem("kaoma_customer_email");
+}
+
+function tokenExpiresSoon(token: string) {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return !payload.exp || Number(payload.exp) * 1000 <= Date.now() + 60_000;
+  } catch {
+    return true;
+  }
+}
+
+export async function getValidCustomerSession() {
+  const accessToken = localStorage.getItem("kaoma_customer_token") || "";
+  const refreshToken = localStorage.getItem("kaoma_customer_refresh_token") || "";
+  if (accessToken && !tokenExpiresSoon(accessToken)) return accessToken;
+  if (!refreshToken) {
+    clearCustomerSession();
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+  try {
+    const session = await refreshCustomerSession(refreshToken);
+    saveCustomerSession(session, localStorage.getItem("kaoma_customer_email") || "");
+    return session.access_token;
+  } catch (error) {
+    clearCustomerSession();
+    throw error;
+  }
 }
 
 export async function getCurrentUser(token: string) {
@@ -189,8 +251,12 @@ export async function db(path: string, token = "", init: RequestInit = {}) {
       ...(init.headers || {}),
     },
   });
-  if (!response.ok)
-    throw new Error((await response.text()) || "Database request failed.");
+  if (!response.ok) {
+    const errorText = (await response.text()) || "Database request failed.";
+    if (response.status === 401 || errorText.includes("PGRST303") || errorText.includes("JWT expired"))
+      throw new Error("Your session has expired. Please sign in again.");
+    throw new Error(errorText);
+  }
   if (response.status === 204) return [];
   return response.json();
 }
