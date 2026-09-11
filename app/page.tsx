@@ -85,6 +85,23 @@ type ProductReview = {
   title?: string;
   body: string;
 };
+type RazorpaySuccess = { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string };
+type RazorpayCheckout = { open: () => void; on: (event: string, handler: (response: { error?: { description?: string } }) => void) => void };
+type RazorpayConstructor = new (options: Record<string, unknown>) => RazorpayCheckout;
+let razorpayScript: Promise<void> | null = null;
+function loadRazorpayCheckout() {
+  if (typeof window === "undefined") return Promise.reject(new Error("Checkout is unavailable."));
+  if ((window as unknown as { Razorpay?: RazorpayConstructor }).Razorpay) return Promise.resolve();
+  if (!razorpayScript) razorpayScript = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Secure checkout could not load. Please try again."));
+    document.head.appendChild(script);
+  });
+  return razorpayScript;
+}
 const cats = [
   "Shop all",
   "For Women",
@@ -349,7 +366,7 @@ export default function Home() {
         country: market.country,
         phone: String(form.get("phone")),
       },
-      orderNumber = `KAOMA-${Date.now().toString().slice(-8)}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
+      checkoutItems = items.map((item) => ({ id: item.id, qty: item.qty, size: item.size, colour: item.colour }));
     try {
       await db("profiles?on_conflict=user_id", token, {
         method: "POST",
@@ -368,56 +385,51 @@ export default function Home() {
           postal_code: address.postal_code,
         }),
       });
-      const created = await db("orders", token, {
+      const orderResponse = await fetch("/api/razorpay/order", {
         method: "POST",
-        body: JSON.stringify({
-          user_id: userId,
-          order_number: orderNumber,
-          customer_email: email,
-          currency: market.currency,
-          subtotal: subtotal * rate,
-          shipping: shipping * rate,
-          tax: 0,
-          total: (subtotal + shipping) * rate,
-          status: "pending",
-          payment_status: "pending",
-          shipping_address: address,
-        }),
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ items: checkoutItems, address, currency: market.currency }),
       });
-      const orderId = created?.[0]?.id;
-      if (!orderId) throw Error("Order could not be created.");
-      await db("order_items", token, {
-        method: "POST",
-        body: JSON.stringify(
-          items.map((item) => ({
-            order_id: orderId,
-            product_id: item.id,
-            product_name: item.name,
-            quantity: item.qty,
-            unit_price: item.price,
-            selected_size: item.size,
-            selected_colour: item.colour,
-          })),
-        ),
-      });
-      void fetch("/api/order-email", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const paymentOrder = await orderResponse.json();
+      if (!orderResponse.ok) throw new Error(paymentOrder.error || "Unable to start payment.");
+      await loadRazorpayCheckout();
+      const Razorpay = (window as unknown as { Razorpay: RazorpayConstructor }).Razorpay;
+      const checkoutInstance = new Razorpay({
+        key: paymentOrder.key,
+        amount: paymentOrder.amount,
+        currency: paymentOrder.currency,
+        name: "KAOMA",
+        description: `Order ${paymentOrder.orderNumber}`,
+        order_id: paymentOrder.razorpayOrderId,
+        prefill: { name: fullName, email, contact: address.phone },
+        notes: { kaoma_order: paymentOrder.orderNumber },
+        theme: { color: "#C34368" },
+        modal: { ondismiss: () => setPlacingOrder(false), confirm_close: true },
+        handler: async (response: RazorpaySuccess) => {
+          try {
+            const verificationResponse = await fetch("/api/razorpay/verify", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+              body: JSON.stringify(response),
+            });
+            const verification = await verificationResponse.json();
+            if (!verificationResponse.ok || !verification.verified) throw new Error(verification.error || "Payment verification failed.");
+            if (verification.captured) {
+              void fetch("/api/order-email", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ customerEmail: email, orderNumber: verification.orderNumber }) });
+              setCart({}); setCheckout(false);
+              toast.success(`Payment received. Order ${verification.orderNumber} is confirmed.`);
+            } else toast.success("Payment authorised. Confirmation will appear after capture.");
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Payment verification failed.");
+          } finally { setPlacingOrder(false); }
         },
-        body: JSON.stringify({ customerEmail: email, orderNumber }),
       });
-      setCart({});
-      setCheckout(false);
-      toast.success(
-        `Order ${orderNumber} created. Payment confirmation is pending.`,
-      );
+      checkoutInstance.on("payment.failed", (response) => { setPlacingOrder(false); toast.error(response.error?.description || "Payment failed. Please try again."); });
+      checkoutInstance.open();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Unable to place order",
       );
-    } finally {
       setPlacingOrder(false);
     }
   }
@@ -1270,8 +1282,8 @@ export default function Home() {
             </div>
             <button className="primary full" disabled={placingOrder}>
               {placingOrder
-                ? "Creating secure order…"
-                : "Place order — payment pending"}
+                ? "Opening secure payment…"
+                : "Pay securely with Razorpay"}
             </button>
             <p className="secure">
               <LockKeyhole /> Your details remain private and encrypted.

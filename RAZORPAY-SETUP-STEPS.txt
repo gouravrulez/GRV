@@ -1,0 +1,17 @@
+KAOMA RAZORPAY SETUP
+
+1. Upload this package to the GRV KAOMA GitHub repository, keeping all folder paths.
+2. Wait until the KAOMA Vercel deployment shows Ready.
+3. In Razorpay Dashboard, use Test Mode first and create/copy the Test Key ID and Test Key Secret.
+4. In Vercel > GRV KAOMA > Settings > Environment Variables, add:
+   RAZORPAY_KEY_ID = your Razorpay Test Key ID
+   RAZORPAY_KEY_SECRET = your Razorpay Test Key Secret
+   SUPABASE_SECRET_KEY = the KAOMA Supabase backend secret key
+5. Apply all three variables to Production, Preview and Development. Never add NEXT_PUBLIC_ to these names.
+6. Redeploy the latest Vercel deployment after saving the variables.
+7. In Razorpay payment capture settings, select automatic capture.
+8. Test with a customer account and Razorpay test payment. Confirm that the order appears as captured/confirmed in KAOMA Admin.
+9. After Razorpay approves KAOMA, replace only the two Razorpay test values with Live Key ID and Live Key Secret, then redeploy.
+
+The Supabase Razorpay database migration has already been applied to the KAOMA project.
+Do not share secret keys in GitHub, source files, screenshots, or chat.
