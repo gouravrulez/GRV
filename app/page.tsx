@@ -148,18 +148,45 @@ export default function Home() {
     setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
     setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
     if (!supabaseReady) return;
-    Promise.all([
-      db("products?select=*&or=(status.eq.active,status.eq.published,status.is.null)&order=created_at.desc"),
-      db("categories?select=id,name&active=eq.true"),
-    ])
-      .then(([rows, categoryRows]) => {
-        const names = new Map(
-          categoryRows.map((c: { id: string; name: string }) => [c.id, c.name]),
+    let cancelled = false;
+    const cached = localStorage.getItem("kaoma_catalog_cache");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as Product[];
+        if (Array.isArray(parsed)) setProducts(parsed);
+      } catch {
+        localStorage.removeItem("kaoma_catalog_cache");
+      }
+    }
+
+    const loadCatalog = async (retry = true) => {
+      try {
+        // Categories are optional for Shop All: a category request must never
+        // prevent products from appearing on the first page load.
+        const [productResult, categoryResult] = await Promise.allSettled([
+          db("products?select=*&order=created_at.desc"),
+          db("categories?select=id,name&active=eq.true"),
+        ]);
+        if (productResult.status !== "fulfilled")
+          throw productResult.reason;
+
+        const categoryRows =
+          categoryResult.status === "fulfilled" ? categoryResult.value : [];
+        const names = new Map<string, string>(
+          categoryRows.map((c: { id: string; name: string }) => [
+            String(c.id),
+            c.name,
+          ]),
         );
-        setProducts(
-          rows.map((p: Record<string, unknown>) => {
+        const catalog = productResult.value
+          .filter((p: Record<string, unknown>) =>
+            [undefined, null, "active", "published"].includes(
+              p.status as string | null | undefined,
+            ),
+          )
+          .map((p: Record<string, unknown>) => {
             const ids = ((p.category_ids as string[]) || []).length
-              ? (p.category_ids as string[])
+              ? (p.category_ids as string[]).map(String)
               : p.category_id
                 ? [String(p.category_id)]
                 : [];
@@ -189,11 +216,18 @@ export default function Home() {
                   ? "New"
                   : "Featured",
               tone: "rose",
-            };
-          }),
-        );
-      })
-      .catch(() => {});
+            } satisfies Product;
+          });
+        if (!cancelled) {
+          setProducts(catalog);
+          localStorage.setItem("kaoma_catalog_cache", JSON.stringify(catalog));
+        }
+      } catch {
+        if (retry && !cancelled)
+          window.setTimeout(() => void loadCatalog(false), 700);
+      }
+    };
+    void loadCatalog();
     db(
       "reviews?select=id,product_id,reviewer_name,rating,title,body&status=eq.approved&order=created_at.desc",
     )
@@ -215,6 +249,9 @@ export default function Home() {
         ),
       )
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
   const filtered = useMemo(
     () =>
