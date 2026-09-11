@@ -76,6 +76,8 @@ export async function sendEmailOtp(email: string, name = "") {
 
 export async function verifyEmailOtp(email: string, token: string) {
   if (!url || !key) throw new Error("Supabase is not configured yet.");
+  if (!/^\d{8}$/.test(token))
+    throw new Error("Enter the complete 8-digit OTP from your email.");
   const response = await fetch(`${url}/auth/v1/verify`, {
     method: "POST",
     headers: { apikey: key, "Content-Type": "application/json" },
@@ -111,6 +113,7 @@ export async function uploadProductImage(file: File, token: string) {
         apikey: key,
         Authorization: `Bearer ${token}`,
         "Content-Type": file.type,
+        "Cache-Control": "public, max-age=31536000, immutable",
         "x-upsert": "false",
       },
       body: file,

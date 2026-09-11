@@ -23,7 +23,6 @@ export function CustomerAccount() {
   const [dialCode,setDialCode]=useState("+91"), [phoneNumber,setPhoneNumber]=useState("");
 
   const loadAccount=useCallback(async(accessToken:string,id:string,accountEmail="")=>{
-    setLoading(true);
     try {
       const [profileRows,orderRows]=await Promise.all([
         db(`profiles?user_id=eq.${id}&select=*`,accessToken),
@@ -32,35 +31,36 @@ export function CustomerAccount() {
       const nextProfile={...emptyProfile,email:accountEmail,...(profileRows[0]||{})};
       const parsedPhone=splitInternationalPhone(nextProfile.phone||"");
       setProfile(nextProfile); setDialCode(parsedPhone.dial); setPhoneNumber(parsedPhone.number); setOrders(orderRows||[]);
-      if(nextProfile.avatar_path) setAvatarUrl(await getCustomerAvatarUrl(nextProfile.avatar_path,accessToken));
+      if(nextProfile.avatar_path) void getCustomerAvatarUrl(nextProfile.avatar_path,accessToken).then(setAvatarUrl).catch(()=>{});
     } catch(error) { setMessage(error instanceof Error?error.message:"Unable to load your account."); }
     finally { setLoading(false); }
   },[]);
 
   useEffect(()=>{
     setWishlistCount(JSON.parse(localStorage.getItem("kaoma_wishlist")||"[]").length);
-    const hash=new URLSearchParams(location.hash.replace(/^#/,"")), accessToken=hash.get("access_token")||localStorage.getItem("kaoma_customer_token")||"";
+    const hash=new URLSearchParams(location.hash.replace(/^#/,"")), accessToken=hash.get("access_token")||localStorage.getItem("kaoma_customer_token")||"", storedId=localStorage.getItem("kaoma_customer_id")||"", storedEmail=localStorage.getItem("kaoma_customer_email")||"";
     if(!accessToken){setLoading(false);return;}
+    if(storedId){setToken(accessToken);setUserId(storedId);setEmail(storedEmail);setProfile(current=>({...current,email:storedEmail}));setLoading(false);}
     void (async()=>{try{
-      const user=await getCurrentUser(accessToken), accountEmail=user.email||localStorage.getItem("kaoma_customer_email")||"";
+      const user=await getCurrentUser(accessToken), accountEmail=user.email||storedEmail;
       localStorage.setItem("kaoma_customer_token",accessToken); localStorage.setItem("kaoma_customer_id",user.id); localStorage.setItem("kaoma_customer_email",accountEmail);
       setToken(accessToken);setUserId(user.id);setEmail(accountEmail);
       if(hash.get("access_token")) history.replaceState(null,"","/account");
       await loadAccount(accessToken,user.id,accountEmail);
-    }catch{localStorage.removeItem("kaoma_customer_token");localStorage.removeItem("kaoma_customer_id");setLoading(false);}})();
+    }catch{localStorage.removeItem("kaoma_customer_token");localStorage.removeItem("kaoma_customer_id");setToken("");setUserId("");setLoading(false);}})();
   },[loadAccount]);
 
   const activeOrders=useMemo(()=>orders.filter(order=>!["delivered","cancelled"].includes(order.status.toLowerCase())),[orders]);
   const updateField=(field:keyof Profile,value:string)=>setProfile(current=>({...current,[field]:value}));
 
   async function requestCode(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{await sendEmailOtp(email);setCodeSent(true);setMessage("Enter the OTP sent to your email.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to send code.");}finally{setBusy(false);}}
-  async function confirmCode(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{const form=new FormData(event.currentTarget),session=await verifyEmailOtp(email,String(form.get("code")).trim());localStorage.setItem("kaoma_customer_token",session.access_token);localStorage.setItem("kaoma_customer_email",session.user.email||email);localStorage.setItem("kaoma_customer_id",session.user.id);setToken(session.access_token);setUserId(session.user.id);await loadAccount(session.access_token,session.user.id,session.user.email||email);setMessage("Welcome to your KAOMA account.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to verify code.");}finally{setBusy(false);}}
+  async function confirmCode(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{const form=new FormData(event.currentTarget),code=String(form.get("code")).trim();if(!/^\d{8}$/.test(code))throw new Error("Enter the complete 8-digit OTP from your email.");const session=await verifyEmailOtp(email,code);localStorage.setItem("kaoma_customer_token",session.access_token);localStorage.setItem("kaoma_customer_email",session.user.email||email);localStorage.setItem("kaoma_customer_id",session.user.id);setToken(session.access_token);setUserId(session.user.id);setLoading(false);setMessage("Welcome to your KAOMA account.");void loadAccount(session.access_token,session.user.id,session.user.email||email);}catch(error){setMessage(error instanceof Error?error.message:"Unable to verify code.");}finally{setBusy(false);}}
   async function saveProfile(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{const cleanNumber=phoneNumber.replace(/[^0-9]/g,"");const body={...profile,phone:cleanNumber?`${dialCode}${cleanNumber}`:"",user_id:userId,email:localStorage.getItem("kaoma_customer_email")||profile.email||email};await db("profiles?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});setProfile(current=>({...current,phone:body.phone}));setMessage("Your profile and international delivery address have been saved.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to save details.");}finally{setBusy(false);}}
   async function changeAvatar(file?:File){if(!file)return;setBusy(true);setMessage("");try{const path=await uploadCustomerAvatar(file,token,userId);await db("profiles?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify({user_id:userId,email:profile.email||email,avatar_path:path})});setProfile(current=>({...current,avatar_path:path}));setAvatarUrl(await getCustomerAvatarUrl(path,token));setMessage("Your profile photo has been updated.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to upload photo.");}finally{setBusy(false);}}
   function logout(){localStorage.removeItem("kaoma_customer_token");localStorage.removeItem("kaoma_customer_email");localStorage.removeItem("kaoma_customer_id");location.reload();}
 
-  if(loading)return <div className="accountLoading">Opening your private account…</div>;
-  if(!token)return <div className="accountBox accountLogin"><span className="accountEyebrow">PRIVATE · PASSWORDLESS · SECURE</span><h2>Sign in to KAOMA</h2><p>Enter your email and we’ll send a one-time login code.</p>{!codeSent?<form onSubmit={requestCode}><label>Email address<input value={email} onChange={event=>setEmail(event.target.value)} type="email" autoComplete="email" placeholder="you@example.com" required/></label>{message&&<div className="accountMessage">{message}</div>}{!supabaseReady&&<div className="adminNotice">Customer sign-in is temporarily unavailable. Please try again shortly.</div>}<button className="primary" disabled={busy||!supabaseReady}>{busy?"Sending OTP…":"Send OTP"}</button></form>:<form onSubmit={confirmCode}><label>Code sent to {email}<input name="code" inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={6} placeholder="6-digit OTP" required/></label>{message&&<div className="accountMessage">{message}</div>}<button className="primary" disabled={busy}>{busy?"Checking…":"Verify and sign in"}</button><button className="textButton" type="button" onClick={()=>setCodeSent(false)}>Use another email</button></form>}<small>New customers are registered automatically. No password is required.</small></div>;
+  if(loading)return null;
+  if(!token)return <div className="accountBox accountLogin"><span className="accountEyebrow">PRIVATE · PASSWORDLESS · SECURE</span><h2>Sign in to KAOMA</h2><p>Enter your email and we’ll send a one-time login code.</p>{!codeSent?<form onSubmit={requestCode}><label>Email address<input value={email} onChange={event=>setEmail(event.target.value)} type="email" autoComplete="email" placeholder="you@example.com" required/></label>{message&&<div className="accountMessage">{message}</div>}{!supabaseReady&&<div className="adminNotice">Customer sign-in is temporarily unavailable. Please try again shortly.</div>}<button className="primary" disabled={busy||!supabaseReady}>{busy?"Sending OTP…":"Send OTP"}</button></form>:<form onSubmit={confirmCode}><label>Enter the 8-digit OTP sent to {email}<input name="code" inputMode="numeric" autoComplete="one-time-code" minLength={8} maxLength={8} pattern="[0-9]{8}" placeholder="8-digit OTP" required/></label>{message&&<div className="accountMessage">{message}</div>}<button className="primary" disabled={busy}>{busy?"Checking…":"Verify and sign in"}</button><button className="textButton" type="button" onClick={()=>setCodeSent(false)}>Use another email</button></form>}<small>New customers are registered automatically. No password is required.</small></div>;
 
   const navItems:{id:AccountSection;label:string;icon:typeof LayoutDashboard}[]=[{id:"overview",label:"Overview",icon:LayoutDashboard},{id:"orders",label:"My orders",icon:ShoppingBag},{id:"tracking",label:"Track order",icon:Truck},{id:"profile",label:"Profile & address",icon:Settings}];
   const avatar=<>{avatarUrl?<img src={avatarUrl} alt="Customer profile"/>:<span>{initials(profile.full_name||"",profile.email||email)}</span>}</>;

@@ -476,7 +476,7 @@ export default function Home() {
                     alt={`${selectedProduct.name} ${index === 0 ? "main image" : `promotional image ${index}`}`}
                     fill
                     sizes="(max-width: 700px) 92vw, 45vw"
-                    unoptimized
+                    quality={74}
                   />
                 </div>
                 <figcaption>
@@ -578,7 +578,7 @@ export default function Home() {
                               alt=""
                               width={72}
                               height={72}
-                              unoptimized
+                              quality={60}
                             />
                           )}
                           <span>
@@ -921,8 +921,8 @@ export default function Home() {
                         src={p.image_urls[0]}
                         alt={p.name}
                         fill
-                        sizes="(max-width: 700px) 100vw, 25vw"
-                        unoptimized
+                        sizes="(max-width: 520px) 92vw, (max-width: 900px) 46vw, 24vw"
+                        quality={64}
                       />
                     )}
                     <span>{p.badge}</span>
@@ -1035,9 +1035,6 @@ export default function Home() {
             intimate wellness and discreet gifting.
           </p>
           <a href="https://kaoma.in">kaoma.in</a>
-          <small>
-            Shipping market: {market.country} · {market.currency}
-          </small>
         </div>
         <div>
           <b>Shop</b>
