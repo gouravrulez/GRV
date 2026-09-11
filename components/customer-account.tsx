@@ -1,266 +1,84 @@
 "use client";
-import { FormEvent, useEffect, useState } from "react";
-import {
-  db,
-  getCurrentUser,
-  sendEmailOtp,
-  supabaseReady,
-  verifyEmailOtp,
-} from "@/lib/supabase-rest";
 
-type Profile = {
-  full_name?: string;
-  email?: string;
-  phone?: string;
-  country?: string;
-  address_line1?: string;
-  city?: string;
-  region?: string;
-  postal_code?: string;
-};
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Camera, ChevronRight, CircleUserRound, Heart, LayoutDashboard, LogOut, MapPin, PackageCheck, PackageOpen, Settings, ShoppingBag, Truck } from "lucide-react";
+import { db, getCurrentUser, getCustomerAvatarUrl, sendEmailOtp, supabaseReady, uploadCustomerAvatar, verifyEmailOtp } from "@/lib/supabase-rest";
+import { callingCodes, countries, splitInternationalPhone } from "@/lib/countries";
+
+type Profile = { full_name?: string; email?: string; phone?: string; country?: string; address_line1?: string; city?: string; region?: string; postal_code?: string; avatar_path?: string };
+type OrderItem = { id:string; product_name:string; quantity:number; unit_price:number; selected_size?:string; selected_colour?:string };
+type Order = { id:string; order_number:string; currency:string; total:number; status:string; payment_status:string; tracking_number?:string; created_at:string; order_items?:OrderItem[] };
+type AccountSection = "overview" | "orders" | "tracking" | "profile";
+
+const emptyProfile: Profile = { full_name:"", email:"", phone:"", country:"", address_line1:"", city:"", region:"", postal_code:"", avatar_path:"" };
+const statusSteps = ["confirmed", "processing", "shipped", "delivered"];
+const friendlyStatus = (status:string) => status.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+const initials = (name:string, email:string) => (name.trim() || email.split("@")[0] || "K").split(/\s+/).slice(0,2).map(part => part[0]?.toUpperCase()).join("");
+
 export function CustomerAccount() {
-  const [email, setEmail] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [token, setToken] = useState("");
-  const [userId, setUserId] = useState("");
-  const [profile, setProfile] = useState<Profile>({});
-  useEffect(() => {
-    const hash = new URLSearchParams(location.hash.replace(/^#/, "")),
-      hashToken = hash.get("access_token") || "",
-      hashUser = hash.get("user_id") || "";
-    if (hashToken) {
-      localStorage.setItem("kaoma_customer_token", hashToken);
-      if (hashUser) localStorage.setItem("kaoma_customer_id", hashUser);
-      else
-        getCurrentUser(hashToken)
-          .then((user) => {
-            localStorage.setItem("kaoma_customer_id", user.id);
-            localStorage.setItem("kaoma_customer_email", user.email || "");
-            setUserId(user.id);
-            db(`profiles?user_id=eq.${user.id}&select=*`, hashToken).then(
-              (rows) => setProfile(rows[0] || {}),
-            );
-          })
-          .catch(() => {});
-      history.replaceState(null, "", "/account");
-    }
-    const t = hashToken || localStorage.getItem("kaoma_customer_token") || "",
-      id = hashUser || localStorage.getItem("kaoma_customer_id") || "";
-    setToken(t);
-    setUserId(id);
-    if (t && id)
-      db(`profiles?user_id=eq.${id}&select=*`, t)
-        .then((rows) => setProfile(rows[0] || {}))
-        .catch(() => {});
-  }, []);
-  async function requestCode(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    setMessage("");
+  const [email,setEmail]=useState(""), [message,setMessage]=useState(""), [token,setToken]=useState(""), [userId,setUserId]=useState("");
+  const [codeSent,setCodeSent]=useState(false), [busy,setBusy]=useState(false), [loading,setLoading]=useState(true);
+  const [profile,setProfile]=useState<Profile>(emptyProfile), [orders,setOrders]=useState<Order[]>([]);
+  const [section,setSection]=useState<AccountSection>("overview"), [avatarUrl,setAvatarUrl]=useState(""), [wishlistCount,setWishlistCount]=useState(0);
+  const [dialCode,setDialCode]=useState("+91"), [phoneNumber,setPhoneNumber]=useState("");
+
+  const loadAccount=useCallback(async(accessToken:string,id:string,accountEmail="")=>{
+    setLoading(true);
     try {
-      await sendEmailOtp(email);
-      setCodeSent(true);
-      setMessage("Enter the OTP sent to your email.");
-    } catch (x) {
-      setMessage(x instanceof Error ? x.message : "Unable to send code.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function confirmCode(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    setMessage("");
-    const f = new FormData(e.currentTarget);
-    try {
-      const s = await verifyEmailOtp(email, String(f.get("code")).trim());
-      localStorage.setItem("kaoma_customer_token", s.access_token);
-      localStorage.setItem("kaoma_customer_email", s.user.email || email);
-      localStorage.setItem("kaoma_customer_id", s.user.id);
-      setToken(s.access_token);
-      setUserId(s.user.id);
-      setMessage("Signed in securely.");
-      const rows = await db(
-        `profiles?user_id=eq.${s.user.id}&select=*`,
-        s.access_token,
-      );
-      setProfile(rows[0] || { email });
-    } catch (x) {
-      setMessage(x instanceof Error ? x.message : "Unable to verify code.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function saveProfile(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    const f = new FormData(e.currentTarget),
-      body = {
-        user_id: userId,
-        full_name: String(f.get("full_name")),
-        email:
-          localStorage.getItem("kaoma_customer_email") ||
-          profile.email ||
-          email,
-        phone: String(f.get("phone")),
-        country: String(f.get("country")),
-        address_line1: String(f.get("address_line1")),
-        city: String(f.get("city")),
-        region: String(f.get("region")),
-        postal_code: String(f.get("postal_code")),
-      };
-    try {
-      await db("profiles?on_conflict=user_id", token, {
-        method: "POST",
-        headers: {
-          Prefer: "resolution=merge-duplicates,return=representation",
-        },
-        body: JSON.stringify(body),
-      });
-      setProfile(body);
-      setMessage("Your delivery details have been saved.");
-    } catch (x) {
-      setMessage(x instanceof Error ? x.message : "Unable to save details.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  function logout() {
-    localStorage.removeItem("kaoma_customer_token");
-    localStorage.removeItem("kaoma_customer_email");
-    localStorage.removeItem("kaoma_customer_id");
-    location.reload();
-  }
-  if (token)
-    return (
-      <div className="accountBox">
-        <h2>Your private account</h2>
-        <p>Save your international delivery address for a faster checkout.</p>
-        <form onSubmit={saveProfile}>
-          <label>
-            Full name
-            <input
-              name="full_name"
-              defaultValue={profile.full_name || ""}
-              required
-            />
-          </label>
-          <label>
-            Phone with country code
-            <input
-              name="phone"
-              defaultValue={profile.phone || ""}
-              placeholder="+91 98765 43210"
-              required
-            />
-          </label>
-          <label>
-            Country / region
-            <input
-              name="country"
-              defaultValue={profile.country || ""}
-              placeholder="India"
-              required
-            />
-          </label>
-          <label>
-            Street address
-            <input
-              name="address_line1"
-              defaultValue={profile.address_line1 || ""}
-              required
-            />
-          </label>
-          <div className="two">
-            <label>
-              City
-              <input name="city" defaultValue={profile.city || ""} required />
-            </label>
-            <label>
-              State / province
-              <input
-                name="region"
-                defaultValue={profile.region || ""}
-                required
-              />
-            </label>
-          </div>
-          <label>
-            Postal / ZIP code
-            <input
-              name="postal_code"
-              defaultValue={profile.postal_code || ""}
-              required
-            />
-          </label>
-          {message && <div className="accountMessage">{message}</div>}
-          <button className="primary" disabled={busy}>
-            {busy ? "Saving…" : "Save my details"}
-          </button>
-          <button className="textButton" type="button" onClick={logout}>
-            Sign out
-          </button>
-        </form>
-      </div>
-    );
-  return (
-    <div className="accountBox">
-      <h2>Sign in to KAOMA</h2>
-      <p>Enter your email. We will send you a one-time login code.</p>
-      {!codeSent ? (
-        <form onSubmit={requestCode}>
-          <label>
-            Email
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              autoComplete="email"
-              required
-            />
-          </label>
-          {message && <div className="accountMessage">{message}</div>}
-          {!supabaseReady && (
-            <div className="adminNotice">
-              Customer sign-in is temporarily unavailable. Please try again
-              shortly.
-            </div>
-          )}
-          <button className="primary" disabled={busy || !supabaseReady}>
-            {busy ? "Sending OTP…" : "Send OTP"}
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={confirmCode}>
-          <label>
-            Code sent to {email}
-            <input
-              name="code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              minLength={6}
-              placeholder="6-digit code"
-              required
-            />
-          </label>
-          {message && <div className="accountMessage">{message}</div>}
-          <button className="primary" disabled={busy}>
-            {busy ? "Checking…" : "Verify and sign in"}
-          </button>
-          <button
-            className="textButton"
-            type="button"
-            onClick={() => setCodeSent(false)}
-          >
-            Use another email
-          </button>
-        </form>
-      )}
-      <p>
-          New customers are registered automatically after verifying the OTP. No password is required.
-      </p>
-    </div>
-  );
+      const [profileRows,orderRows]=await Promise.all([
+        db(`profiles?user_id=eq.${id}&select=*`,accessToken),
+        db(`orders?user_id=eq.${id}&select=id,order_number,currency,total,status,payment_status,tracking_number,created_at,order_items(id,product_name,quantity,unit_price,selected_size,selected_colour)&order=created_at.desc`,accessToken),
+      ]);
+      const nextProfile={...emptyProfile,email:accountEmail,...(profileRows[0]||{})};
+      const parsedPhone=splitInternationalPhone(nextProfile.phone||"");
+      setProfile(nextProfile); setDialCode(parsedPhone.dial); setPhoneNumber(parsedPhone.number); setOrders(orderRows||[]);
+      if(nextProfile.avatar_path) setAvatarUrl(await getCustomerAvatarUrl(nextProfile.avatar_path,accessToken));
+    } catch(error) { setMessage(error instanceof Error?error.message:"Unable to load your account."); }
+    finally { setLoading(false); }
+  },[]);
+
+  useEffect(()=>{
+    setWishlistCount(JSON.parse(localStorage.getItem("kaoma_wishlist")||"[]").length);
+    const hash=new URLSearchParams(location.hash.replace(/^#/,"")), accessToken=hash.get("access_token")||localStorage.getItem("kaoma_customer_token")||"";
+    if(!accessToken){setLoading(false);return;}
+    void (async()=>{try{
+      const user=await getCurrentUser(accessToken), accountEmail=user.email||localStorage.getItem("kaoma_customer_email")||"";
+      localStorage.setItem("kaoma_customer_token",accessToken); localStorage.setItem("kaoma_customer_id",user.id); localStorage.setItem("kaoma_customer_email",accountEmail);
+      setToken(accessToken);setUserId(user.id);setEmail(accountEmail);
+      if(hash.get("access_token")) history.replaceState(null,"","/account");
+      await loadAccount(accessToken,user.id,accountEmail);
+    }catch{localStorage.removeItem("kaoma_customer_token");localStorage.removeItem("kaoma_customer_id");setLoading(false);}})();
+  },[loadAccount]);
+
+  const activeOrders=useMemo(()=>orders.filter(order=>!["delivered","cancelled"].includes(order.status.toLowerCase())),[orders]);
+  const updateField=(field:keyof Profile,value:string)=>setProfile(current=>({...current,[field]:value}));
+
+  async function requestCode(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{await sendEmailOtp(email);setCodeSent(true);setMessage("Enter the OTP sent to your email.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to send code.");}finally{setBusy(false);}}
+  async function confirmCode(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{const form=new FormData(event.currentTarget),session=await verifyEmailOtp(email,String(form.get("code")).trim());localStorage.setItem("kaoma_customer_token",session.access_token);localStorage.setItem("kaoma_customer_email",session.user.email||email);localStorage.setItem("kaoma_customer_id",session.user.id);setToken(session.access_token);setUserId(session.user.id);await loadAccount(session.access_token,session.user.id,session.user.email||email);setMessage("Welcome to your KAOMA account.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to verify code.");}finally{setBusy(false);}}
+  async function saveProfile(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{const cleanNumber=phoneNumber.replace(/[^0-9]/g,"");const body={...profile,phone:cleanNumber?`${dialCode}${cleanNumber}`:"",user_id:userId,email:localStorage.getItem("kaoma_customer_email")||profile.email||email};await db("profiles?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});setProfile(current=>({...current,phone:body.phone}));setMessage("Your profile and international delivery address have been saved.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to save details.");}finally{setBusy(false);}}
+  async function changeAvatar(file?:File){if(!file)return;setBusy(true);setMessage("");try{const path=await uploadCustomerAvatar(file,token,userId);await db("profiles?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify({user_id:userId,email:profile.email||email,avatar_path:path})});setProfile(current=>({...current,avatar_path:path}));setAvatarUrl(await getCustomerAvatarUrl(path,token));setMessage("Your profile photo has been updated.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to upload photo.");}finally{setBusy(false);}}
+  function logout(){localStorage.removeItem("kaoma_customer_token");localStorage.removeItem("kaoma_customer_email");localStorage.removeItem("kaoma_customer_id");location.reload();}
+
+  if(loading)return <div className="accountLoading">Opening your private account…</div>;
+  if(!token)return <div className="accountBox accountLogin"><span className="accountEyebrow">PRIVATE · PASSWORDLESS · SECURE</span><h2>Sign in to KAOMA</h2><p>Enter your email and we’ll send a one-time login code.</p>{!codeSent?<form onSubmit={requestCode}><label>Email address<input value={email} onChange={event=>setEmail(event.target.value)} type="email" autoComplete="email" placeholder="you@example.com" required/></label>{message&&<div className="accountMessage">{message}</div>}{!supabaseReady&&<div className="adminNotice">Customer sign-in is temporarily unavailable. Please try again shortly.</div>}<button className="primary" disabled={busy||!supabaseReady}>{busy?"Sending OTP…":"Send OTP"}</button></form>:<form onSubmit={confirmCode}><label>Code sent to {email}<input name="code" inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={6} placeholder="6-digit OTP" required/></label>{message&&<div className="accountMessage">{message}</div>}<button className="primary" disabled={busy}>{busy?"Checking…":"Verify and sign in"}</button><button className="textButton" type="button" onClick={()=>setCodeSent(false)}>Use another email</button></form>}<small>New customers are registered automatically. No password is required.</small></div>;
+
+  const navItems:{id:AccountSection;label:string;icon:typeof LayoutDashboard}[]=[{id:"overview",label:"Overview",icon:LayoutDashboard},{id:"orders",label:"My orders",icon:ShoppingBag},{id:"tracking",label:"Track order",icon:Truck},{id:"profile",label:"Profile & address",icon:Settings}];
+  const avatar=<>{avatarUrl?<img src={avatarUrl} alt="Customer profile"/>:<span>{initials(profile.full_name||"",profile.email||email)}</span>}</>;
+
+  return <div className="customerDashboard">
+    <aside className="customerAccountSide"><div className="customerIdentity"><div className="customerAvatar">{avatar}<label title="Change profile photo"><Camera/><input type="file" accept="image/jpeg,image/png,image/webp" onChange={event=>void changeAvatar(event.target.files?.[0])}/></label></div><div><small>WELCOME</small><strong>{profile.full_name||"KAOMA customer"}</strong><span>{profile.email||email}</span></div></div><nav aria-label="Customer account">{navItems.map(({id,label,icon:Icon})=><button key={id} className={section===id?"active":""} onClick={()=>setSection(id)}><Icon/><span>{label}</span><ChevronRight/></button>)}<a href="/wishlist"><Heart/><span>Wishlist</span><b>{wishlistCount}</b></a><button onClick={logout}><LogOut/><span>Sign out</span></button></nav></aside>
+    <main className="customerAccountMain"><header className="accountMobileHead"><div className="customerAvatar small">{avatar}</div><div><small>MY KAOMA</small><strong>{profile.full_name||"Your account"}</strong></div></header><div className="accountMobileNav">{navItems.map(({id,label,icon:Icon})=><button key={id} className={section===id?"active":""} onClick={()=>setSection(id)}><Icon/>{label}</button>)}</div>{message&&<div className="accountMessage">{message}</div>}
+      {section==="overview"&&<section className="accountSection"><AccountTitle eyebrow="YOUR PRIVATE SPACE" title="Account overview" text="Manage orders, delivery details and favourites in one place."/><div className="accountStatGrid"><article><PackageOpen/><div><strong>{orders.length}</strong><span>Total orders</span></div></article><article><Truck/><div><strong>{activeOrders.length}</strong><span>Active deliveries</span></div></article><article><Heart/><div><strong>{wishlistCount}</strong><span>Saved favourites</span></div></article></div><div className="accountOverviewGrid"><article className="accountPanel"><div className="panelHead"><h3>Recent orders</h3><button onClick={()=>setSection("orders")}>View all</button></div>{orders.length?orders.slice(0,3).map(order=><OrderRow key={order.id} order={order} onTrack={()=>setSection("tracking")}/>):<EmptyOrders/>}</article><article className="accountPanel"><div className="panelHead"><h3>Delivery details</h3><button onClick={()=>setSection("profile")}>Edit</button></div><AddressSummary profile={profile}/></article></div></section>}
+      {section==="orders"&&<section className="accountSection"><AccountTitle eyebrow="ORDER HISTORY" title="My orders" text="Review every KAOMA purchase and its current status."/><div className="accountPanel orderHistory">{orders.length?orders.map(order=><OrderCard key={order.id} order={order} onTrack={()=>setSection("tracking")}/>):<EmptyOrders/>}</div></section>}
+      {section==="tracking"&&<section className="accountSection"><AccountTitle eyebrow="DELIVERY UPDATES" title="Track your orders" text="Tracking appears here as soon as your order is dispatched."/><div className="trackingList">{activeOrders.length?activeOrders.map(order=><TrackingCard key={order.id} order={order}/>):<div className="accountPanel accountEmpty"><PackageCheck/><h3>No active deliveries</h3><p>Your active order tracking will appear here.</p></div>}</div></section>}
+      {section==="profile"&&<section className="accountSection"><AccountTitle eyebrow="PROFILE & DELIVERY" title="Your details" text="Keep your information accurate for smooth international delivery."/><form className="profileForm" onSubmit={saveProfile}><div className="profileFormHead"><CircleUserRound/><div><h3>Personal information</h3><p>Your email is secured by passwordless verification.</p></div></div><div className="profileFields"><label>Full name<input value={profile.full_name||""} onChange={event=>updateField("full_name",event.target.value)} autoComplete="name" required/></label><label>Email address<input value={profile.email||email} readOnly/></label><label>Phone number<div className="phoneField"><select aria-label="Country calling code" value={dialCode} onChange={event=>setDialCode(event.target.value)}>{callingCodes.map(code=><option key={code} value={code}>{code}</option>)}</select><input value={phoneNumber} onChange={event=>setPhoneNumber(event.target.value)} placeholder="Mobile number" inputMode="tel" autoComplete="tel-national" required/></div></label><label>Country / region<select value={profile.country||""} onChange={event=>{const country=event.target.value;updateField("country",country);const match=countries.find(item=>item.name===country);if(match&&match.dial!=="+")setDialCode(match.dial);}} autoComplete="country-name" required><option value="" disabled>Select country / region</option>{countries.map(country=><option key={country.code} value={country.name}>{country.name}</option>)}</select></label><label className="wide">Street address<input value={profile.address_line1||""} onChange={event=>updateField("address_line1",event.target.value)} autoComplete="street-address" placeholder="House/building, street and area" required/></label><label>City<input value={profile.city||""} onChange={event=>updateField("city",event.target.value)} autoComplete="address-level2" required/></label><label>State / province<input value={profile.region||""} onChange={event=>updateField("region",event.target.value)} autoComplete="address-level1" required/></label><label>Postal / ZIP code<input value={profile.postal_code||""} onChange={event=>updateField("postal_code",event.target.value)} autoComplete="postal-code" required/></label></div><button className="primary" disabled={busy}>{busy?"Saving…":"Save profile and address"}</button></form></section>}
+    </main>
+  </div>;
 }
+
+function AccountTitle({eyebrow,title,text}:{eyebrow:string;title:string;text:string}){return <div className="accountTitle"><span>{eyebrow}</span><h2>{title}</h2><p>{text}</p></div>}
+function AddressSummary({profile}:{profile:Profile}){if(!profile.address_line1)return <div className="emptyAddress"><MapPin/><p>No delivery address saved yet.</p></div>;return <address><strong>{profile.full_name}</strong><span>{profile.address_line1}</span><span>{[profile.city,profile.region,profile.postal_code].filter(Boolean).join(", ")}</span><span>{profile.country}</span>{profile.phone&&<span>{profile.phone}</span>}</address>}
+function EmptyOrders(){return <div className="emptyOrders"><PackageOpen/><h3>No orders yet</h3><p>Your purchases will appear here after checkout.</p><a className="primary" href="/#collection">Explore collection</a></div>}
+function OrderRow({order,onTrack}:{order:Order;onTrack:()=>void}){return <div className="orderRow"><div><strong>#{order.order_number}</strong><span>{new Date(order.created_at).toLocaleDateString()}</span></div><div><b>{order.currency} {Number(order.total).toFixed(2)}</b><span className={`statusPill ${order.status.toLowerCase()}`}>{friendlyStatus(order.status)}</span></div><button onClick={onTrack}>Track</button></div>}
+function OrderCard({order,onTrack}:{order:Order;onTrack:()=>void}){return <article className="orderCard"><div className="orderCardHead"><div><small>ORDER</small><strong>#{order.order_number}</strong><span>{new Date(order.created_at).toLocaleDateString()}</span></div><span className={`statusPill ${order.status.toLowerCase()}`}>{friendlyStatus(order.status)}</span></div><div className="orderItems">{order.order_items?.length?order.order_items.map(item=><div key={item.id}><span>{item.quantity} × {item.product_name}</span><small>{[item.selected_colour,item.selected_size].filter(Boolean).join(" · ")}</small></div>):<span>Order details</span>}</div><footer><div><small>TOTAL</small><strong>{order.currency} {Number(order.total).toFixed(2)}</strong></div><div><small>PAYMENT</small><strong>{friendlyStatus(order.payment_status)}</strong></div><button onClick={onTrack}><Truck/> Track order</button></footer></article>}
+function TrackingCard({order}:{order:Order}){const current=Math.max(0,statusSteps.indexOf(order.status.toLowerCase()));return <article className="accountPanel trackingCard"><div className="trackingHead"><div><small>ORDER</small><strong>#{order.order_number}</strong></div><span className={`statusPill ${order.status.toLowerCase()}`}>{friendlyStatus(order.status)}</span></div><div className="trackingSteps">{statusSteps.map((step,index)=><div key={step} className={index<=current?"complete":""}><i>{index<current?"✓":index+1}</i><span>{friendlyStatus(step)}</span></div>)}</div>{order.tracking_number?<p><strong>Tracking number:</strong> {order.tracking_number}</p>:<p>Tracking number will be added after dispatch.</p>}</article>}

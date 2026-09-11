@@ -121,6 +121,56 @@ export async function uploadProductImage(file: File, token: string) {
   return `${url}/storage/v1/object/public/product-images/${path}`;
 }
 
+export async function uploadCustomerAvatar(
+  file: File,
+  token: string,
+  userId: string,
+) {
+  if (!url || !key) throw new Error("Customer accounts are unavailable.");
+  if (!file.type.match(/^image\/(jpeg|png|webp)$/))
+    throw new Error("Choose a JPG, PNG or WebP image.");
+  if (file.size > 5 * 1024 * 1024)
+    throw new Error("Profile photo must be smaller than 5 MB.");
+  const extension = file.type.split("/")[1].replace("jpeg", "jpg");
+  const path = `${userId}/profile.${extension}`;
+  const response = await fetch(
+    `${url}/storage/v1/object/customer-avatars/${path}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": file.type,
+        "x-upsert": "true",
+      },
+      body: file,
+    },
+  );
+  if (!response.ok)
+    throw new Error((await response.text()) || "Profile photo upload failed.");
+  return path;
+}
+
+export async function getCustomerAvatarUrl(path: string, token: string) {
+  if (!url || !key || !path) return "";
+  const response = await fetch(
+    `${url}/storage/v1/object/sign/customer-avatars/${path}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ expiresIn: 3600 }),
+    },
+  );
+  if (!response.ok) return "";
+  const data = await response.json();
+  const signed = data.signedURL || data.signedUrl || "";
+  return signed ? `${url}/storage/v1${signed}` : "";
+}
+
 export async function db(path: string, token = "", init: RequestInit = {}) {
   if (!url || !key) throw new Error("Supabase is not configured yet.");
   const response = await fetch(`${url}/rest/v1/${path}`, {

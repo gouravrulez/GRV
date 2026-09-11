@@ -40,9 +40,9 @@ const pages = {
   },
   account: {
     eyebrow: "CUSTOMER ACCOUNT",
-    title: "Sign in or create an account",
+    title: "Your private KAOMA account",
     intro:
-      "Customer authentication will be securely connected to the new business database before launch.",
+      "View orders, follow deliveries, manage favourites and update your profile securely.",
     kind: "account",
   },
   guides: {

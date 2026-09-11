@@ -132,7 +132,7 @@ export default function Home() {
     setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
     if (!supabaseReady) return;
     Promise.all([
-      db("products?select=*&status=eq.active&order=created_at.desc"),
+      db("products?select=*&or=(status.eq.active,status.eq.published,status.is.null)&order=created_at.desc"),
       db("categories?select=id,name&active=eq.true"),
     ])
       .then(([rows, categoryRows]) => {
