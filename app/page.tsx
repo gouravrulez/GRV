@@ -161,24 +161,27 @@ export default function Home() {
 
     const loadCatalog = async (retry = true) => {
       try {
-        // Categories are optional for Shop All: a category request must never
-        // prevent products from appearing on the first page load.
-        const [productResult, categoryResult] = await Promise.allSettled([
-          db("products?select=*&order=created_at.desc"),
-          db("categories?select=id,name&active=eq.true"),
-        ]);
-        if (productResult.status !== "fulfilled")
-          throw productResult.reason;
-
-        const categoryRows =
-          categoryResult.status === "fulfilled" ? categoryResult.value : [];
+        // Use KAOMA's same-domain API so browser privacy/CORS/network rules
+        // cannot block the initial cross-domain Supabase catalogue request.
+        const response = await fetch("/api/catalog", { cache: "no-store" });
+        if (!response.ok) throw new Error("Catalogue request failed.");
+        const payload = (await response.json()) as {
+          products?: Record<string, unknown>[];
+          categories?: { id: string; name: string }[];
+        };
+        const productRows = Array.isArray(payload.products)
+          ? payload.products
+          : [];
+        const categoryRows = Array.isArray(payload.categories)
+          ? payload.categories
+          : [];
         const names = new Map<string, string>(
           categoryRows.map((c: { id: string; name: string }) => [
             String(c.id),
             c.name,
           ]),
         );
-        const catalog = productResult.value
+        const catalog = productRows
           .filter((p: Record<string, unknown>) =>
             [undefined, null, "active", "published"].includes(
               p.status as string | null | undefined,
