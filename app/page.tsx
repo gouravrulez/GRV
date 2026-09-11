@@ -147,7 +147,6 @@ export default function Home() {
   useEffect(() => {
     setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
     setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
-    if (!supabaseReady) return;
     let cancelled = false;
     const cached = localStorage.getItem("kaoma_catalog_cache");
     if (cached) {
@@ -231,27 +230,29 @@ export default function Home() {
       }
     };
     void loadCatalog();
-    db(
-      "reviews?select=id,product_id,reviewer_name,rating,title,body&status=eq.approved&order=created_at.desc",
-    )
-      .then(setReviews)
-      .catch(() => {});
-    db("site_settings?select=key,value&key=in.(branding,homepage,commerce)")
-      .then((rows) =>
-        setStorefront(
-          rows.reduce(
-            (
-              all: StorefrontSettings,
-              row: { key: string; value?: StorefrontSettings | Commerce },
-            ) =>
-              row.key === "commerce"
-                ? { ...all, commerce: row.value as Commerce }
-                : { ...all, ...row.value },
-            {},
-          ),
-        ),
+    if (supabaseReady) {
+      db(
+        "reviews?select=id,product_id,reviewer_name,rating,title,body&status=eq.approved&order=created_at.desc",
       )
-      .catch(() => {});
+        .then(setReviews)
+        .catch(() => {});
+      db("site_settings?select=key,value&key=in.(branding,homepage,commerce)")
+        .then((rows) =>
+          setStorefront(
+            rows.reduce(
+              (
+                all: StorefrontSettings,
+                row: { key: string; value?: StorefrontSettings | Commerce },
+              ) =>
+                row.key === "commerce"
+                  ? { ...all, commerce: row.value as Commerce }
+                  : { ...all, ...row.value },
+              {},
+            ),
+          ),
+        )
+        .catch(() => {});
+    }
     return () => {
       cancelled = true;
     };
