@@ -62,9 +62,7 @@ export function CustomerAccount() {
     try {
       await sendEmailOtp(email);
       setCodeSent(true);
-      setMessage(
-        "We sent a secure sign-in code to your email. If your Supabase template uses a link, you may use that link instead.",
-      );
+      setMessage("Enter the OTP sent to your email.");
     } catch (x) {
       setMessage(x instanceof Error ? x.message : "Unable to send code.");
     } finally {
@@ -226,8 +224,8 @@ export function CustomerAccount() {
           {message && <div className="accountMessage">{message}</div>}
           {!supabaseReady && (
             <div className="adminNotice">
-              Customer accounts activate after the Supabase environment values
-              are added in Vercel.
+              Customer sign-in is temporarily unavailable. Please try again
+              shortly.
             </div>
           )}
           <button className="primary" disabled={busy || !supabaseReady}>
