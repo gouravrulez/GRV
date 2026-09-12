@@ -19,6 +19,7 @@ export async function authenticatedCustomer(request: Request) {
   const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: { apikey: anonKey, Authorization: `Bearer ${token}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(12000),
   });
   if (!response.ok) throw new Error("Your session expired. Please sign in again.");
   const user = (await response.json()) as { id: string; email?: string };
@@ -37,6 +38,7 @@ export async function serviceDb(path: string, init: RequestInit = {}) {
       ...(init.headers || {}),
     },
     cache: "no-store",
+    signal: init.signal || AbortSignal.timeout(12000),
   });
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
@@ -54,6 +56,7 @@ export async function razorpay(path: string, init: RequestInit = {}) {
       ...(init.headers || {}),
     },
     cache: "no-store",
+    signal: init.signal || AbortSignal.timeout(15000),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error?.description || "Razorpay request failed.");

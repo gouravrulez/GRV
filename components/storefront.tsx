@@ -95,10 +95,26 @@ function loadRazorpayCheckout() {
   if ((window as unknown as { Razorpay?: RazorpayConstructor }).Razorpay) return Promise.resolve();
   if (!razorpayScript) razorpayScript = new Promise((resolve, reject) => {
     const script = document.createElement("script");
+    const timer = window.setTimeout(() => {
+      script.remove();
+      razorpayScript = null;
+      reject(new Error("Secure payment window took too long to load. Please check your connection and try again."));
+    }, 15000);
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Secure checkout could not load. Please try again."));
+    script.onload = () => {
+      window.clearTimeout(timer);
+      if ((window as unknown as { Razorpay?: RazorpayConstructor }).Razorpay) resolve();
+      else {
+        razorpayScript = null;
+        reject(new Error("Secure payment window was blocked. Please allow pop-ups and try again."));
+      }
+    };
+    script.onerror = () => {
+      window.clearTimeout(timer);
+      razorpayScript = null;
+      reject(new Error("Secure checkout could not load. Please disable any ad blocker and try again."));
+    };
     document.head.appendChild(script);
   });
   return razorpayScript;
@@ -454,11 +470,14 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ items: checkoutItems, address, currency: market.currency }),
+        signal: AbortSignal.timeout(20000),
       });
-      const paymentOrder = await orderResponse.json();
+      const orderText = await orderResponse.text();
+      const paymentOrder = orderText ? JSON.parse(orderText) : {};
       if (!orderResponse.ok) throw new Error(paymentOrder.error || "Unable to start payment.");
       await loadRazorpayCheckout();
       const Razorpay = (window as unknown as { Razorpay: RazorpayConstructor }).Razorpay;
+      if (!Razorpay) throw new Error("Secure payment window could not open. Please allow pop-ups and try again.");
       const checkoutInstance = new Razorpay({
         key: paymentOrder.key,
         amount: paymentOrder.amount,
@@ -492,8 +511,15 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
       checkoutInstance.on("payment.failed", (response) => { setPlacingOrder(false); toast.error(response.error?.description || "Payment failed. Please try again."); });
       checkoutInstance.open();
     } catch (error) {
+      const message = error instanceof DOMException && error.name === "TimeoutError"
+        ? "Payment service took too long to respond. Please try again."
+        : error instanceof SyntaxError
+          ? "Payment service returned an invalid response. Please check the deployment configuration."
+          : error instanceof Error
+            ? error.message
+            : "Unable to place order";
       toast.error(
-        error instanceof Error ? error.message : "Unable to place order",
+        message,
       );
       setPlacingOrder(false);
     }
