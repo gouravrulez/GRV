@@ -488,9 +488,10 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
             const verification = await verificationResponse.json();
             if (!verificationResponse.ok || !verification.verified) throw new Error(verification.error || "Payment verification failed.");
             if (verification.captured) {
-              void fetch("/api/order-email", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ customerEmail: email, orderNumber: verification.orderNumber }) });
               setCart({}); setCheckout(false);
-              toast.success(`Payment received. Order ${verification.orderNumber} is confirmed.`);
+              toast.success(verification.emailSent
+                ? `Payment received. Order ${verification.orderNumber} is confirmed and emailed.`
+                : `Payment received. Order ${verification.orderNumber} is confirmed.`);
             } else toast.success("Payment authorised. Confirmation will appear after capture.");
           } catch (error) {
             toast.error(error instanceof Error ? error.message : "Payment verification failed.");

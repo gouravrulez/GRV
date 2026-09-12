@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authenticatedCustomer, razorpay, serviceDb, validSignature } from "@/lib/razorpay-server";
+import { sendOrderEmails } from "@/lib/order-email";
 
 export async function POST(request: Request) {
   try {
@@ -9,14 +10,29 @@ export async function POST(request: Request) {
     if (!orderId || !paymentId || !validSignature(orderId, paymentId, signature)) throw new Error("Payment verification failed.");
     const payment = await razorpay(`payments/${encodeURIComponent(paymentId)}`);
     if (payment.order_id !== orderId || !["captured", "authorized"].includes(payment.status)) throw new Error("Payment has not been authorised.");
-    const orders = await serviceDb(`orders?user_id=eq.${user.id}&razorpay_order_id=eq.${encodeURIComponent(orderId)}&select=id,order_number,payment_status`);
+    const orders = await serviceDb(`orders?user_id=eq.${user.id}&razorpay_order_id=eq.${encodeURIComponent(orderId)}&select=id,order_number,payment_status,customer_email,currency,total,shipping_address`);
     const order = orders?.[0];
     if (!order) throw new Error("KAOMA order was not found.");
     await serviceDb("rpc/finalize_razorpay_order", {
       method: "POST",
       body: JSON.stringify({ p_order_id: order.id, p_payment_id: paymentId, p_signature: signature, p_payment_status: payment.status }),
     });
-    return NextResponse.json({ verified: true, captured: payment.status === "captured", orderNumber: order.order_number });
+    let emailSent = false;
+    if (payment.status === "captured") {
+      try {
+        await sendOrderEmails({
+          orderNumber: order.order_number,
+          customerEmail: order.customer_email || user.email || "",
+          currency: order.currency,
+          total: Number(order.total),
+          address: order.shipping_address || {},
+        });
+        emailSent = true;
+      } catch (emailError) {
+        console.error("[razorpay/verify] order email failed", { message: emailError instanceof Error ? emailError.message : String(emailError), orderNumber: order.order_number });
+      }
+    }
+    return NextResponse.json({ verified: true, captured: payment.status === "captured", orderNumber: order.order_number, emailSent });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to verify payment." }, { status: 400 });
   }
