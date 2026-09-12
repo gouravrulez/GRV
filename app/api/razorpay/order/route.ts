@@ -6,10 +6,12 @@ type Product = { id: string; name: string; price: number; stock_quantity: number
 
 export async function POST(request: Request) {
   try {
+    console.info("[razorpay/order] request received");
     const { user } = await authenticatedCustomer(request);
     const body = await request.json();
     const items = Array.isArray(body.items) ? (body.items as CheckoutItem[]) : [];
     const address = body.address && typeof body.address === "object" ? body.address : {};
+    const customer = body.customer && typeof body.customer === "object" ? body.customer : {};
     const currency = String(body.currency || "INR").toUpperCase();
     const supported = new Set(["INR", "USD", "GBP", "EUR", "AED", "AUD", "CAD", "SGD"]);
     if (!supported.has(currency)) throw new Error("This checkout currency is not supported.");
@@ -46,6 +48,25 @@ export async function POST(request: Request) {
     const amount = Math.round(total * 100);
     if (amount < 100) throw new Error("Order amount is below the payment minimum.");
 
+    // Save checkout details through the server. A slow or blocked browser-to-
+    // Supabase profile request must never prevent Razorpay from opening.
+    await serviceDb("profiles?on_conflict=user_id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({
+        user_id: user.id,
+        full_name: String(customer.fullName || "").slice(0, 160),
+        email: user.email || String(customer.email || ""),
+        phone: String(address.phone || "").slice(0, 40),
+        country: String(address.country || "").slice(0, 120),
+        address_line1: String(address.line1 || "").slice(0, 300),
+        city: String(address.city || "").slice(0, 120),
+        region: String(address.region || "").slice(0, 120),
+        postal_code: String(address.postal_code || "").slice(0, 30),
+      }),
+    });
+    console.info("[razorpay/order] customer details saved", { userId: user.id, currency, itemCount: cleanItems.length });
+
     const orderNumber = `KAOMA-${Date.now().toString().slice(-8)}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
     const paymentOrder = await razorpay("orders", {
       method: "POST",
@@ -62,8 +83,10 @@ export async function POST(request: Request) {
       body: JSON.stringify(cleanItems.map((item) => { const product = productMap.get(item.id)!; return { order_id: orderId, product_id: item.id, product_name: product.name, quantity: item.qty, unit_price: Number((Number(product.price) * rate).toFixed(2)), selected_size: item.size, selected_colour: item.colour }; })),
     });
     const { razorpayKeyId } = requireServerConfiguration();
+    console.info("[razorpay/order] order created", { orderNumber, razorpayOrderId: paymentOrder.id });
     return NextResponse.json({ key: razorpayKeyId, razorpayOrderId: paymentOrder.id, amount, currency, orderNumber });
   } catch (error) {
+    console.error("[razorpay/order] failed", { message: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to start payment." }, { status: 400 });
   }
 }

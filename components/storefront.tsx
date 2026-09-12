@@ -449,27 +449,10 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
       },
       checkoutItems = items.map((item) => ({ id: item.id, qty: item.qty, size: item.size, colour: item.colour }));
     try {
-      await db("profiles?on_conflict=user_id", token, {
-        method: "POST",
-        headers: {
-          Prefer: "resolution=merge-duplicates,return=representation",
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          full_name: fullName,
-          email,
-          phone: address.phone,
-          country: address.country,
-          address_line1: address.line1,
-          city: address.city,
-          region: address.region,
-          postal_code: address.postal_code,
-        }),
-      });
       const orderResponse = await fetch("/api/razorpay/order", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ items: checkoutItems, address, currency: market.currency }),
+        body: JSON.stringify({ items: checkoutItems, address, currency: market.currency, customer: { fullName, email } }),
         signal: AbortSignal.timeout(20000),
       });
       const orderText = await orderResponse.text();
