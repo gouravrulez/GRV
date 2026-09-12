@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { clearCustomerSession, db, getValidCustomerSession, supabaseReady } from "@/lib/supabase-rest";
 import { worldCountries } from "@/lib/world-countries";
@@ -365,12 +366,27 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
   };
   useEffect(() => {
     if (products.length) {
-      const requested = new URLSearchParams(location.search).get("product");
+      const params = new URLSearchParams(location.search);
+      const requested = params.get("product");
       if (requested) {
         const found = products.find(
           (p) => p.slug === requested || p.id === requested,
         );
         if (found) {
+          const action = params.get("action");
+          if (action === "cart" || action === "buy") {
+            const size = params.get("size") || found.sizes?.[0] || "Standard";
+            const colour = params.get("colour") || found.colours?.[0] || "As shown";
+            setCart({ [found.id]: { qty: 1, size, colour } });
+            history.replaceState(null, "", "/");
+            if (action === "cart") {
+              setCartOpen(true);
+              toast.success(found.name + " added to your bag");
+            } else {
+              setTimeout(openCheckout, 50);
+            }
+            return;
+          }
           setSelectedProduct(found);
           setSelectedSize(found.sizes?.[0] || "");
           setSelectedColour(found.colours?.[0] || "");
@@ -1064,17 +1080,9 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
                       {p.oldPrice && <del>{formatPrice(p.oldPrice)}</del>}
                     </div>
                     <div className="productBtns">
-                      <button
-                        onClick={() =>
-                          p.image_urls?.length ? openProduct(p) : add(p)
-                        }
-                      >
-                        {p.image_urls?.length
-                          ? "View details"
-                          : p.enable_add_to_cart !== false
-                            ? "Add to cart"
-                            : "View product"}
-                      </button>
+                      <Link className="productDetailsLink" href={`/product/${encodeURIComponent(p.slug)}`}>
+                        View details
+                      </Link>
                       {p.enable_buy_now !== false && (
                         <button onClick={() => add(p, true)}>Buy now</button>
                       )}

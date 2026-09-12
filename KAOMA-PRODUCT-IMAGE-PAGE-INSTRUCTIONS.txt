@@ -1,0 +1,14 @@
+KAOMA PRODUCT IMAGE + PRODUCT PAGE UPDATE
+
+Upload every folder in this ZIP to the root of the GRV / KAOMA GitHub repository.
+Choose "Commit changes" and wait for the GRV Vercel production deployment to become Ready.
+
+After deployment:
+1. Open KAOMA Admin > Products & Inventory.
+2. Edit the existing product.
+3. Use Main product image for the cover photograph.
+4. Use Additional product images for gallery/promotional photographs.
+5. Save changes.
+6. Open www.kaoma.in and press Ctrl + Shift + R once.
+
+The existing product currently has no stored image URL, so its image must be uploaded once again through the corrected Main product image field.

@@ -265,16 +265,22 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     e.preventDefault();
     const formElement = e.currentTarget,
       f = new FormData(formElement),
-      files = f
-        .getAll("images")
+      mainFile = f.get("main_image") instanceof File && (f.get("main_image") as File).size > 0
+        ? (f.get("main_image") as File)
+        : null,
+      galleryFiles = f
+        .getAll("gallery_images")
         .filter((item): item is File => item instanceof File && item.size > 0);
     setUploading(true);
     setMsg("");
     try {
-      const uploaded = await Promise.all(
-        files.map((file) => uploadProductImage(file, token)),
-      );
-      const images = [...productImages, ...uploaded],
+      const uploadedMain = mainFile
+          ? await uploadProductImage(mainFile, token)
+          : productImages[0] || "",
+        uploadedGallery = await Promise.all(
+          galleryFiles.map((file) => uploadProductImage(file, token)),
+        ),
+        images = [uploadedMain, ...productImages.slice(1), ...uploadedGallery].filter(Boolean),
         name = String(f.get("name")),
         categoryIds = f.getAll("categories").map(String),
         colours = String(f.get("colours"))
@@ -289,6 +295,9 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
           }),
           {},
         );
+      if (String(f.get("status")) === "active" && images.length === 0) {
+        throw new Error("Choose a main product image before publishing this product.");
+      }
       const body = {
         name,
         slug: slug(name),
@@ -818,22 +827,39 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                         </label>
                       ))}
                   </fieldset>
-                  <label className="imageInput">
+                  <section className="adminImageUploads">
+                  <label className="imageInput mainImageUpload">
                     <ImagePlus />
                     <span>
-                      Add main and gallery images
+                      Main product image
                       <small>
-                        First image is main; following images map to colour
-                        variants and promotion
+                        Upload one clear cover image. This appears in Shop All and category cards.
                       </small>
                     </span>
                     <input
-                      name="images"
+                      name="main_image"
+                      type="file"
+                      required={!edit && productImages.length === 0}
+                      accept="image/jpeg,image/png,image/webp"
+                    />
+                  </label>
+                  <label className="imageInput galleryImageUpload">
+                    <ImagePlus />
+                    <span>
+                      Additional product images
+                      <small>Upload multiple gallery, detail, lifestyle or promotional images.</small>
+                    </span>
+                    <input
+                      name="gallery_images"
                       type="file"
                       multiple
                       accept="image/jpeg,image/png,image/webp"
                     />
                   </label>
+                  </section>
+                  {!edit && productImages.length === 0 && (
+                    <p className="imageUploadNote">A main image must be selected before the product is published.</p>
+                  )}
                   {productImages.length > 0 && (
                     <div className="imageManager">
                       {productImages.map((url, index) => (
