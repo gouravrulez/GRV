@@ -1,6 +1,5 @@
 "use client";
 import Image from "next/image";
-import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { clearCustomerSession, db, getValidCustomerSession, supabaseReady } from "@/lib/supabase-rest";
 import { worldCountries } from "@/lib/world-countries";
@@ -1039,7 +1038,17 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
             </div>
             <div className="products">
               {filtered.map((p) => (
-                <article key={p.id}>
+                <article
+                  key={p.id}
+                  className="clickableProductCard"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => (location.href = `/product/${encodeURIComponent(p.slug)}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ")
+                      location.href = `/product/${encodeURIComponent(p.slug)}`;
+                  }}
+                >
                   <div className={"art " + p.tone}>
                     {p.image_urls?.[0] && (
                       <Image
@@ -1054,7 +1063,10 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
                     <span>{p.badge}</span>
                     {p.enable_wishlist !== false && (
                       <button
-                        onClick={() => toggleWishlist(p.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleWishlist(p.id);
+                        }}
                         aria-label="Add to wishlist"
                       >
                         <Heart />
@@ -1065,7 +1077,10 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
                     {p.image_urls && p.image_urls.length > 1 && (
                       <button
                         className="galleryCount"
-                        onClick={() => openProduct(p)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          location.href = `/product/${encodeURIComponent(p.slug)}`;
+                        }}
                       >
                         {p.image_urls.length} photos
                       </button>
@@ -1080,11 +1095,23 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
                       {p.oldPrice && <del>{formatPrice(p.oldPrice)}</del>}
                     </div>
                     <div className="productBtns">
-                      <Link className="productDetailsLink" href={`/product/${encodeURIComponent(p.slug)}`}>
-                        View details
-                      </Link>
+                      {p.enable_add_to_cart !== false && (
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            add(p);
+                          }}
+                        >
+                          Add to cart
+                        </button>
+                      )}
                       {p.enable_buy_now !== false && (
-                        <button onClick={() => add(p, true)}>Buy now</button>
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            add(p, true);
+                          }}
+                        >Buy now</button>
                       )}
                     </div>
                   </div>
