@@ -57,8 +57,13 @@ export async function POST(request: Request) {
     const commerce = settingRows?.[0]?.value || {};
     const rate = Number(commerce.rates?.[currency] || (currency === "INR" ? 1 : 0));
     if (!rate) throw new Error("Currency conversion is temporarily unavailable.");
-    const freeAbove = Number(commerce.shipping?.free_above || 5000);
-    const shippingInr = subtotalInr >= freeAbove ? 0 : String(address.country) === "India" ? Number(commerce.shipping?.India || 99) : Number(commerce.shipping?.International || 1499);
+    const shippingEnabled = commerce.shipping?.enabled === true;
+    const freeAbove = Number(commerce.shipping?.free_above ?? 5000);
+    const shippingInr = !shippingEnabled || subtotalInr >= freeAbove
+      ? 0
+      : String(address.country) === "India"
+        ? Number(commerce.shipping?.India ?? 0)
+        : Number(commerce.shipping?.International ?? 0);
     const subtotal = Number((subtotalInr * rate).toFixed(2));
     const shipping = Number((shippingInr * rate).toFixed(2));
     const total = Number((subtotal + shipping).toFixed(2));

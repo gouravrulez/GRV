@@ -432,6 +432,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
           SGD: Number(f.get("SGD")),
         },
         shipping: {
+          enabled: f.get("shipping_enabled") === "on",
           India: Number(f.get("ship_india")),
           International: Number(f.get("ship_international")),
           free_above: Number(f.get("free_above")),
@@ -1154,24 +1155,26 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                   ),
                 )}
                 <label>
-                  India shipping (INR)
+                  India delivery charge (INR)
                   <input
                     name="ship_india"
                     type="number"
+                    min="0"
                     defaultValue={
                       (commerce.shipping as Record<string, number> | undefined)
-                        ?.India || 99
+                        ?.India ?? 0
                     }
                   />
                 </label>
                 <label>
-                  International shipping (INR)
+                  International delivery charge (INR)
                   <input
                     name="ship_international"
                     type="number"
+                    min="0"
                     defaultValue={
                       (commerce.shipping as Record<string, number> | undefined)
-                        ?.International || 1499
+                        ?.International ?? 0
                     }
                   />
                 </label>
@@ -1180,11 +1183,23 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                   <input
                     name="free_above"
                     type="number"
+                    min="0"
                     defaultValue={
                       (commerce.shipping as Record<string, number> | undefined)
-                        ?.free_above || 5000
+                        ?.free_above ?? 5000
                     }
                   />
+                </label>
+                <label className="adminInlineCheck">
+                  <input
+                    name="shipping_enabled"
+                    type="checkbox"
+                    defaultChecked={
+                      (commerce.shipping as Record<string, unknown> | undefined)
+                        ?.enabled === true
+                    }
+                  />
+                  Enable delivery charges. Keep this off for free delivery.
                 </label>
                 <label>
                   Future payment provider

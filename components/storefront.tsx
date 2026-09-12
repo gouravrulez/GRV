@@ -65,7 +65,7 @@ export type Product = {
 };
 type Commerce = {
   rates?: Record<string, number>;
-  shipping?: { India?: number; International?: number; free_above?: number };
+  shipping?: { enabled?: boolean; India?: number; International?: number; free_above?: number };
   payments?: { provider?: string; enabled?: boolean };
 };
 type StorefrontSettings = {
@@ -312,12 +312,14 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
       .map((p) => ({ ...p, ...cart[p.id] })),
     count = Object.values(cart).reduce((a, b) => a + b.qty, 0),
     subtotal = items.reduce((s, p) => s + p.price * p.qty, 0),
-    shipping =
-      subtotal >= (storefront.commerce?.shipping?.free_above || 5000)
+    shippingSettings = storefront.commerce?.shipping,
+    shipping = shippingSettings?.enabled === true
+      ? subtotal >= (shippingSettings.free_above ?? 5000)
         ? 0
         : destination.code === "IN"
-          ? storefront.commerce?.shipping?.India || 99
-          : storefront.commerce?.shipping?.International || 1499;
+          ? shippingSettings.India ?? 0
+          : shippingSettings.International ?? 0
+      : 0;
   const go = (c: string) => {
     setActive(c);
     setTimeout(

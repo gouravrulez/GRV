@@ -1,0 +1,19 @@
+KAOMA ONE-UPLOAD CUMULATIVE UPDATE
+
+1. Extract the ZIP on your computer.
+2. Open the extracted folder.
+3. Upload the app, components and lib folders directly to the ROOT of the GitHub GRV repository.
+4. Allow GitHub to replace files with the same names.
+5. Do not upload the outer ZIP-name folder as a folder inside the repository.
+6. Wait for Vercel Production deployment to show READY.
+7. Open https://kaoma.in and press Ctrl + Shift + R.
+
+Required Vercel variables:
+RESEND_API_KEY = your Resend API key beginning with re_
+ORDER_EMAIL_FROM = KAOMA <orders@kaoma.in>
+ADMIN_ORDER_EMAIL = kaomaglobal@gmail.com
+
+This update includes worldwide checkout, international calling codes, session
+refresh, Razorpay checkout and verification fixes, server-triggered customer
+and admin order emails, free delivery by default, and editable India and
+international delivery charges in the admin Global Commerce settings.
