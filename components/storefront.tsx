@@ -165,6 +165,14 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
     [destinationCode, setDestinationCode] = useState("IN"),
     [phoneCountryCode, setPhoneCountryCode] = useState("IN");
   useEffect(() => {
+    // Warm the Razorpay checkout bundle shortly after page load so the payment
+    // window opens quickly when the customer is ready.
+    const preload = window.setTimeout(() => {
+      void loadRazorpayCheckout().catch(() => undefined);
+    }, 1200);
+    return () => window.clearTimeout(preload);
+  }, []);
+  useEffect(() => {
     setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
     setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
     let cancelled = false;
@@ -463,7 +471,13 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
         prefill: { name: fullName, email, contact: address.phone },
         notes: { kaoma_order: paymentOrder.orderNumber },
         theme: { color: "#C34368" },
-        modal: { ondismiss: () => setPlacingOrder(false), confirm_close: true },
+        modal: {
+          ondismiss: () => {
+            setPlacingOrder(false);
+            setCheckout(true);
+          },
+          confirm_close: true,
+        },
         handler: async (response: RazorpaySuccess) => {
           try {
             const verificationResponse = await fetch("/api/razorpay/verify", {
@@ -483,8 +497,15 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
           } finally { setPlacingOrder(false); }
         },
       });
-      checkoutInstance.on("payment.failed", (response) => { setPlacingOrder(false); toast.error(response.error?.description || "Payment failed. Please try again."); });
-      checkoutInstance.open();
+      checkoutInstance.on("payment.failed", (response) => {
+        setPlacingOrder(false);
+        setCheckout(true);
+        toast.error(response.error?.description || "Payment failed. Please try again.");
+      });
+      // Radix Dialog intentionally blocks pointer events outside its own modal.
+      // Close it and allow React to release the body lock before Razorpay mounts.
+      setCheckout(false);
+      window.setTimeout(() => checkoutInstance.open(), 80);
     } catch (error) {
       const message = error instanceof DOMException && error.name === "TimeoutError"
         ? "Payment service took too long to respond. Please try again."
