@@ -425,17 +425,9 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
       toast.error("Your bag is empty");
       return;
     }
+    // Go straight to KAOMA's same-origin payment API. The server validates the
+    // customer token; no third-party browser request may block checkout first.
     setPlacingOrder(true);
-    try {
-      token = await getValidCustomerSession();
-    } catch {
-      clearCustomerSession();
-      setPlacingOrder(false);
-      toast.error("Your session expired. Please sign in again.");
-      setCheckout(false);
-      setTimeout(() => (location.href = "/account"), 700);
-      return;
-    }
     const form = new FormData(event.currentTarget),
       fullName = `${form.get("first_name")} ${form.get("last_name")}`.trim(),
       address = {
