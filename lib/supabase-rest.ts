@@ -165,7 +165,23 @@ export async function getCurrentUser(token: string) {
 
 export async function uploadProductImage(file: File, token: string) {
   if (!url || !key) throw new Error("Supabase is not configured yet.");
-  const safe = file.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
+  if (!file.type.match(/^image\/(jpeg|png|webp)$/)) throw new Error("Choose a JPG, PNG or WebP image.");
+  let uploadFile = file;
+  try {
+    const bitmap = await createImageBitmap(file), maxSide = 1800,
+      scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height)),
+      canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (context) {
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", .82));
+      if (blob) uploadFile = new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
+    }
+    bitmap.close();
+  } catch { uploadFile = file; }
+  const safe = uploadFile.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
   const path = `${crypto.randomUUID()}-${safe}`;
   const response = await fetch(
     `${url}/storage/v1/object/product-images/${path}`,
@@ -174,11 +190,11 @@ export async function uploadProductImage(file: File, token: string) {
       headers: {
         apikey: key,
         Authorization: `Bearer ${token}`,
-        "Content-Type": file.type,
+        "Content-Type": uploadFile.type,
         "Cache-Control": "public, max-age=31536000, immutable",
         "x-upsert": "false",
       },
-      body: file,
+      body: uploadFile,
     },
   );
   if (!response.ok)

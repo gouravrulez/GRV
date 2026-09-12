@@ -19,7 +19,7 @@ export async function GET() {
   try {
     const [products, categories] = await Promise.all([
       publicDb("products?select=*&status=eq.active&order=created_at.desc"),
-      publicDb("categories?select=id,name&active=eq.true"),
+      publicDb("categories?select=id,name,slug,icon_url&active=eq.true&order=sort_order"),
     ]);
     return NextResponse.json(
       { products, categories },

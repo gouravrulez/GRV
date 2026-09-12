@@ -17,8 +17,8 @@ import {
   Users,
 } from "lucide-react";
 import { db, uploadProductImage } from "@/lib/supabase-rest";
-type Cat = { id: string; name: string; slug: string };
-type Sub = { id: string; category_id: string; name: string; slug: string };
+type Cat = { id: string; name: string; slug: string; icon_url?: string | null };
+type Sub = { id: string; category_id: string; name: string; slug: string; icon_url?: string | null };
 type Product = {
   id: string;
   name: string;
@@ -165,6 +165,8 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [settings, setSettings] = useState<SiteSetting[]>([]);
   const [edit, setEdit] = useState<Product | null>(null);
+  const [editCat, setEditCat] = useState<Cat | null>(null);
+  const [editSub, setEditSub] = useState<Sub | null>(null);
   const [productImages, setProductImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   async function load(authToken: string) {
@@ -172,9 +174,9 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
       if (!(await db("admins?select=user_id&limit=1", authToken)).length)
         throw Error("This account is not authorised for KAOMA administration.");
       const [c, s, p, o, oi, u, r, site] = await Promise.all([
-        db("categories?select=id,name,slug&order=sort_order", authToken),
+        db("categories?select=id,name,slug,icon_url&order=sort_order", authToken),
         db(
-          "subcategories?select=id,category_id,name,slug&order=sort_order",
+          "subcategories?select=id,category_id,name,slug,icon_url&order=sort_order",
           authToken,
         ),
         db("products?select=*&order=created_at.desc", authToken),
@@ -238,27 +240,36 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
   async function addCat(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget),
-      name = String(f.get("name"));
-    await db("categories", token, {
-      method: "POST",
-      body: JSON.stringify({ name, slug: slug(name) }),
+      name = String(f.get("name")),
+      iconFile = f.get("icon_file") as File,
+      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, token) : editCat?.icon_url || null;
+    await db(editCat ? `categories?id=eq.${editCat.id}` : "categories", token, {
+      method: editCat ? "PATCH" : "POST",
+      body: JSON.stringify({ name, slug: slug(name), icon_url: iconUrl }),
     });
     e.currentTarget.reset();
+    setEditCat(null);
+    setMsg(editCat ? "Category updated." : "Category added.");
     await load(token);
   }
   async function addSub(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget),
-      name = String(f.get("name"));
-    await db("subcategories", token, {
-      method: "POST",
+      name = String(f.get("name")),
+      iconFile = f.get("icon_file") as File,
+      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, token) : editSub?.icon_url || null;
+    await db(editSub ? `subcategories?id=eq.${editSub.id}` : "subcategories", token, {
+      method: editSub ? "PATCH" : "POST",
       body: JSON.stringify({
         name,
         slug: slug(name),
         category_id: String(f.get("category")),
+        icon_url: iconUrl,
       }),
     });
     e.currentTarget.reset();
+    setEditSub(null);
+    setMsg(editSub ? "Subcategory updated." : "Subcategory added.");
     await load(token);
   }
   async function saveProduct(e: FormEvent<HTMLFormElement>) {
@@ -662,12 +673,18 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
             <article className="adminCard adminWide">
               <h2>Categories & subcategories</h2>
               <div className="adminSplit">
-                <form onSubmit={addCat}>
-                  <input name="name" placeholder="Category name" required />
-                  <button className="primary">Add category</button>
+                <form key={editCat?.id || "new-cat"} onSubmit={addCat} className="categoryEditorForm">
+                  <h3>{editCat ? "Edit category" : "Add category"}</h3>
+                  {editCat?.icon_url && <Image src={editCat.icon_url} alt="Current category logo" width={70} height={70} unoptimized />}
+                  <input name="name" defaultValue={editCat?.name || ""} placeholder="Category name" required />
+                  <label>Category logo / icon<input name="icon_file" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+                  <button className="primary">{editCat ? "Save category" : "Add category"}</button>
+                  {editCat && <button type="button" className="textButton" onClick={() => setEditCat(null)}>Cancel</button>}
                 </form>
-                <form onSubmit={addSub}>
-                  <select name="category" required>
+                <form key={editSub?.id || "new-sub"} onSubmit={addSub} className="categoryEditorForm">
+                  <h3>{editSub ? "Edit subcategory" : "Add subcategory"}</h3>
+                  {editSub?.icon_url && <Image src={editSub.icon_url} alt="Current subcategory logo" width={70} height={70} unoptimized />}
+                  <select name="category" defaultValue={editSub?.category_id || ""} required>
                     <option value="">Parent category</option>
                     {cats.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -675,13 +692,16 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                       </option>
                     ))}
                   </select>
-                  <input name="name" placeholder="Subcategory name" required />
-                  <button className="primary">Add subcategory</button>
+                  <input name="name" defaultValue={editSub?.name || ""} placeholder="Subcategory name" required />
+                  <label>Subcategory logo / icon<input name="icon_file" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+                  <button className="primary">{editSub ? "Save subcategory" : "Add subcategory"}</button>
+                  {editSub && <button type="button" className="textButton" onClick={() => setEditSub(null)}>Cancel</button>}
                 </form>
               </div>
               <div className="adminList">
                 {cats.map((c) => (
                   <div key={c.id}>
+                    {c.icon_url ? <Image className="adminCategoryLogo" src={c.icon_url} alt="" width={52} height={52} unoptimized /> : <span className="adminCategoryLogo placeholder">{c.name.slice(0,1)}</span>}
                     <span>
                       <b>{c.name}</b>
                       <small>
@@ -691,9 +711,21 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                           .join(" · ") || "No subcategories"}
                       </small>
                     </span>
+                    <button onClick={() => setEditCat(c)}>Edit</button>
                     <button onClick={() => void remove("categories", c.id)}>
                       Delete
                     </button>
+                  </div>
+                ))}
+              </div>
+              <h3 className="subcategoryListTitle">Subcategories</h3>
+              <div className="adminList">
+                {subs.map((s) => (
+                  <div key={s.id}>
+                    {s.icon_url ? <Image className="adminCategoryLogo" src={s.icon_url} alt="" width={52} height={52} unoptimized /> : <span className="adminCategoryLogo placeholder">{s.name.slice(0,1)}</span>}
+                    <span><b>{s.name}</b><small>Under {cats.find((c) => c.id === s.category_id)?.name || "category"}</small></span>
+                    <button onClick={() => setEditSub(s)}>Edit</button>
+                    <button onClick={() => void remove("subcategories", s.id)}>Delete</button>
                   </div>
                 ))}
               </div>

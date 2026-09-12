@@ -13,8 +13,7 @@ export async function POST(request: Request) {
     const address = body.address && typeof body.address === "object" ? body.address : {};
     const customer = body.customer && typeof body.customer === "object" ? body.customer : {};
     const currency = String(body.currency || "INR").toUpperCase();
-    const supported = new Set(["INR", "USD", "GBP", "EUR", "AED", "AUD", "CAD", "SGD"]);
-    if (!supported.has(currency)) throw new Error("This checkout currency is not supported.");
+    if (!/^[A-Z]{3}$/.test(currency)) throw new Error("This checkout currency is not valid.");
     if (!items.length || items.length > 50) throw new Error("Your bag is empty or too large.");
     if (![address.line1, address.city, address.region, address.postal_code, address.country, address.phone].every((value) => String(value || "").trim()))
       throw new Error("Complete all delivery details before paying.");
@@ -55,7 +54,15 @@ export async function POST(request: Request) {
     }
 
     const commerce = settingRows?.[0]?.value || {};
-    const rate = Number(commerce.rates?.[currency] || (currency === "INR" ? 1 : 0));
+    let liveRate = 0;
+    if (!commerce.rates?.[currency] && currency !== "INR") {
+      try {
+        const rateResponse = await fetch("https://open.er-api.com/v6/latest/INR", { next: { revalidate: 43200 } });
+        const rateData = rateResponse.ok ? await rateResponse.json() : {};
+        liveRate = Number(rateData.rates?.[currency] || 0);
+      } catch { liveRate = 0; }
+    }
+    const rate = Number(commerce.rates?.[currency] || (currency === "INR" ? 1 : liveRate));
     if (!rate) throw new Error("Currency conversion is temporarily unavailable.");
     const shippingEnabled = commerce.shipping?.enabled === true;
     const freeAbove = Number(commerce.shipping?.free_above ?? 5000);

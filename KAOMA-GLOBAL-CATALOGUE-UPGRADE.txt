@@ -1,0 +1,23 @@
+KAOMA GLOBAL CATALOGUE MANAGEMENT UPDATE
+
+Upload all files and folders from this ZIP to the root of the GRV / KAOMA GitHub repository, commit the changes, and wait for the production deployment to show Ready.
+
+After deployment:
+1. Open www.kaoma.in and press Ctrl + Shift + R once.
+2. Open Admin > Categories & Subcategories.
+3. Click Edit beside a category or subcategory to change its name or logo.
+4. Edit the existing product and upload its Main product image again because the current database record has an empty image list.
+
+WHAT IS INCLUDED
+- Full-image fitting inside product cards and product galleries without cutting the photograph.
+- Automatic resize and WebP compression before new product/category images are uploaded.
+- Separate main product image and additional gallery image fields.
+- Add, edit and delete controls for categories and subcategories.
+- Category and subcategory logo upload/edit controls.
+- Category logos automatically appear on homepage category tiles.
+- Worldwide display-currency rates loaded automatically and cached for speed.
+- Existing manual currency rates remain higher-priority overrides.
+- Dedicated product pages and Add to cart / Buy now product-card behaviour.
+
+IMPORTANT PAYMENT NOTE
+Display conversion supports worldwide currencies. Actual settlement in a particular foreign currency also depends on which international currencies Razorpay enables for the KAOMA merchant account.

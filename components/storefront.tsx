@@ -119,7 +119,7 @@ function loadRazorpayCheckout() {
   });
   return razorpayScript;
 }
-const cats = [
+const defaultCats = [
   "Shop all",
   "For Women",
   "For Men",
@@ -160,7 +160,9 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
     [placingOrder, setPlacingOrder] = useState(false),
     [customerEmail, setCustomerEmail] = useState(""),
     [storefront, setStorefront] = useState<StorefrontSettings>({}),
+    [catalogCategories, setCatalogCategories] = useState<{id:string;name:string;slug:string;icon_url?:string|null}[]>([]),
     [wishlist, setWishlist] = useState<string[]>([]),
+    [availableMarkets, setAvailableMarkets] = useState(markets),
     [market, setMarket] = useState(markets[0]),
     [destinationCode, setDestinationCode] = useState("IN"),
     [phoneCountryCode, setPhoneCountryCode] = useState("IN");
@@ -171,6 +173,17 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
       void loadRazorpayCheckout().catch(() => undefined);
     }, 0);
     return () => window.clearTimeout(preload);
+  }, []);
+  useEffect(() => {
+    fetch("/api/exchange-rates")
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then(({ rates }: { rates?: Record<string, number> }) => {
+        const next = Object.entries(rates || {}).filter(([, value]) => Number(value) > 0).map(([currency, value]) => {
+          const parts = new Intl.NumberFormat("en", { style:"currency", currency, currencyDisplay:"narrowSymbol" }).formatToParts(0);
+          return { country:`${currency} pricing`, currency, symbol:parts.find((part) => part.type === "currency")?.value || currency, rate:Number(value), dialCode:"" };
+        }).sort((a,b) => a.currency === "INR" ? -1 : b.currency === "INR" ? 1 : a.currency.localeCompare(b.currency));
+        if (next.length) setAvailableMarkets(next);
+      }).catch(() => undefined);
   }, []);
   useEffect(() => {
     setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
@@ -194,7 +207,7 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
         if (!response.ok) throw new Error("Catalogue request failed.");
         const payload = (await response.json()) as {
           products?: Record<string, unknown>[];
-          categories?: { id: string; name: string }[];
+          categories?: { id: string; name: string; slug?: string; icon_url?: string | null }[];
         };
         const productRows = Array.isArray(payload.products)
           ? payload.products
@@ -202,6 +215,9 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
         const categoryRows = Array.isArray(payload.categories)
           ? payload.categories
           : [];
+        if (!cancelled && categoryRows.length) {
+          setCatalogCategories(categoryRows.map((c) => ({ id:String(c.id), name:String(c.name), slug:String(c.slug || c.name.toLowerCase().replaceAll(" ", "-")), icon_url:c.icon_url })));
+        }
         const names = new Map<string, string>(
           categoryRows.map((c: { id: string; name: string }) => [
             String(c.id),
@@ -285,6 +301,9 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
       cancelled = true;
     };
   }, []);
+  const cats = catalogCategories.length
+    ? ["Shop all", ...catalogCategories.map((category) => category.name)]
+    : defaultCats;
   const filtered = useMemo(
     () =>
       products.filter(
@@ -830,12 +849,12 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
               value={market.currency}
               onChange={(e) =>
                 setMarket(
-                  markets.find((m) => m.currency === e.target.value) ??
-                    markets[0],
+                  availableMarkets.find((m) => m.currency === e.target.value) ??
+                    availableMarkets[0],
                 )
               }
             >
-              {markets.map((m) => (
+              {availableMarkets.map((m) => (
                 <option key={m.currency} value={m.currency}>
                   {m.currency}
                 </option>
@@ -936,14 +955,14 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
         ))}
       </section>
       <section id="categories" className="catGrid">
-        {cats.slice(1).map((c, i) => (
+        {(catalogCategories.length ? catalogCategories : defaultCats.slice(1).map((name) => ({id:name,name,slug:name.toLowerCase().replaceAll(" ", "-"),icon_url:null}))).map((c, i) => (
           <a
             className={"cat miniCat c" + ((i % 3) + 1)}
-            href={"/category/" + c.toLowerCase().replaceAll(" ", "-")}
-            key={c}
+            href={"/category/" + c.slug}
+            key={c.id}
           >
-            <span className="catIcon">{["♀", "♂", "☾", "♡", "✦"][i]}</span>
-            <strong>{c}</strong>
+            <span className="catIcon">{c.icon_url ? <Image src={c.icon_url} alt="" fill sizes="42px" /> : ["♀", "♂", "☾", "♡", "✦"][i % 5]}</span>
+            <strong>{c.name}</strong>
             <small>
               {
                 [
@@ -952,7 +971,7 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
                   "Wedding-night edit",
                   "Connection essentials",
                   "Memorable surprises",
-                ][i]
+                ][i] || `${c.name} collection`
               }
             </small>
             <ChevronRight />
