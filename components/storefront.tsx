@@ -169,7 +169,7 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
     // window opens quickly when the customer is ready.
     const preload = window.setTimeout(() => {
       void loadRazorpayCheckout().catch(() => undefined);
-    }, 1200);
+    }, 0);
     return () => window.clearTimeout(preload);
   }, []);
   useEffect(() => {

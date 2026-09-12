@@ -25,32 +25,7 @@ export async function POST(request: Request) {
     }));
     if (cleanItems.some((item) => !/^[0-9a-f-]{36}$/i.test(item.id))) throw new Error("Invalid product in bag.");
     const ids = [...new Set(cleanItems.map((item) => item.id))];
-    const products = (await serviceDb(`products?id=in.(${ids.join(",")})&select=id,name,price,stock_quantity,status`)) as Product[];
-    if (products.length !== ids.length) throw new Error("A product in your bag is unavailable.");
-    const productMap = new Map(products.map((product) => [product.id, product]));
-    let subtotalInr = 0;
-    for (const item of cleanItems) {
-      const product = productMap.get(item.id)!;
-      if (!["active", "published", null].includes(product.status)) throw new Error(`${product.name} is unavailable.`);
-      if (product.stock_quantity < item.qty) throw new Error(`Only ${product.stock_quantity} of ${product.name} available.`);
-      subtotalInr += Number(product.price) * item.qty;
-    }
-
-    const settingRows = await serviceDb("site_settings?key=eq.commerce&select=value");
-    const commerce = settingRows?.[0]?.value || {};
-    const rate = Number(commerce.rates?.[currency] || (currency === "INR" ? 1 : 0));
-    if (!rate) throw new Error("Currency conversion is temporarily unavailable.");
-    const freeAbove = Number(commerce.shipping?.free_above || 5000);
-    const shippingInr = subtotalInr >= freeAbove ? 0 : String(address.country) === "India" ? Number(commerce.shipping?.India || 99) : Number(commerce.shipping?.International || 1499);
-    const subtotal = Number((subtotalInr * rate).toFixed(2));
-    const shipping = Number((shippingInr * rate).toFixed(2));
-    const total = Number((subtotal + shipping).toFixed(2));
-    const amount = Math.round(total * 100);
-    if (amount < 100) throw new Error("Order amount is below the payment minimum.");
-
-    // Save checkout details through the server. A slow or blocked browser-to-
-    // Supabase profile request must never prevent Razorpay from opening.
-    await serviceDb("profiles?on_conflict=user_id", {
+    const profileSave = serviceDb("profiles?on_conflict=user_id", {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify({
@@ -65,13 +40,40 @@ export async function POST(request: Request) {
         postal_code: String(address.postal_code || "").slice(0, 30),
       }),
     });
-    console.info("[razorpay/order] customer details saved", { userId: user.id, currency, itemCount: cleanItems.length });
+    const [products, settingRows] = await Promise.all([
+      serviceDb(`products?id=in.(${ids.join(",")})&select=id,name,price,stock_quantity,status`) as Promise<Product[]>,
+      serviceDb("site_settings?key=eq.commerce&select=value"),
+    ]);
+    if (products.length !== ids.length) throw new Error("A product in your bag is unavailable.");
+    const productMap = new Map(products.map((product) => [product.id, product]));
+    let subtotalInr = 0;
+    for (const item of cleanItems) {
+      const product = productMap.get(item.id)!;
+      if (!["active", "published", null].includes(product.status)) throw new Error(`${product.name} is unavailable.`);
+      if (product.stock_quantity < item.qty) throw new Error(`Only ${product.stock_quantity} of ${product.name} available.`);
+      subtotalInr += Number(product.price) * item.qty;
+    }
+
+    const commerce = settingRows?.[0]?.value || {};
+    const rate = Number(commerce.rates?.[currency] || (currency === "INR" ? 1 : 0));
+    if (!rate) throw new Error("Currency conversion is temporarily unavailable.");
+    const freeAbove = Number(commerce.shipping?.free_above || 5000);
+    const shippingInr = subtotalInr >= freeAbove ? 0 : String(address.country) === "India" ? Number(commerce.shipping?.India || 99) : Number(commerce.shipping?.International || 1499);
+    const subtotal = Number((subtotalInr * rate).toFixed(2));
+    const shipping = Number((shippingInr * rate).toFixed(2));
+    const total = Number((subtotal + shipping).toFixed(2));
+    const amount = Math.round(total * 100);
+    if (amount < 100) throw new Error("Order amount is below the payment minimum.");
 
     const orderNumber = `KAOMA-${Date.now().toString().slice(-8)}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
-    const paymentOrder = await razorpay("orders", {
-      method: "POST",
-      body: JSON.stringify({ amount, currency, receipt: orderNumber, notes: { kaoma_order: orderNumber, customer_id: user.id } }),
-    });
+    const [, paymentOrder] = await Promise.all([
+      profileSave,
+      razorpay("orders", {
+        method: "POST",
+        body: JSON.stringify({ amount, currency, receipt: orderNumber, notes: { kaoma_order: orderNumber, customer_id: user.id } }),
+      }),
+    ]);
+    console.info("[razorpay/order] customer details saved", { userId: user.id, currency, itemCount: cleanItems.length });
     const created = await serviceDb("orders", {
       method: "POST", headers: { Prefer: "return=representation" },
       body: JSON.stringify({ user_id: user.id, order_number: orderNumber, customer_email: user.email || "", currency, subtotal, shipping, tax: 0, total, status: "pending", payment_status: "created", shipping_address: address, razorpay_order_id: paymentOrder.id }),
