@@ -1,0 +1,22 @@
+KAOMA — RAZORPAY REVIEWER LOGIN SETUP
+
+1. Upload the contents of this ZIP to the GRV/KAOMA GitHub repository (not Shree Gauri), preserving the folders.
+2. Wait for the Vercel production deployment to show Ready.
+3. Open Supabase project GRV KAOMA.
+4. Go to Authentication > Users > Add user > Create new user.
+5. Enter a dedicated reviewer email address that you control and a strong, unique password.
+6. Enable Auto Confirm User if that option is shown, then create the user.
+7. Do NOT add this user to the admins table. It must remain a normal customer account.
+8. Open https://kaoma.in/razorpay-review and confirm that the dedicated email/password opens /account.
+9. In the Razorpay verification form enter:
+   Website: https://kaoma.in
+   Requires login: Yes
+   Test username/email: the dedicated Supabase reviewer email
+   Test password: the dedicated site password
+10. If Razorpay provides a notes or login-URL field, enter:
+    https://kaoma.in/razorpay-review
+
+IMPORTANT
+- Never enter your Gmail password, Supabase password, Razorpay password, API key, or admin password.
+- The normal KAOMA customer login remains email OTP only.
+- This unlisted page is solely for Razorpay's authorised checkout review.
