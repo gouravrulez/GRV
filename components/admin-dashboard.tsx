@@ -170,6 +170,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
   const [productImages, setProductImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [imageUploadStatus, setImageUploadStatus] = useState("");
+  const [categoryImageStatus, setCategoryImageStatus] = useState("");
   async function load(authToken: string) {
     try {
       if (!(await db("admins?select=user_id&limit=1", authToken)).length)
@@ -255,20 +256,29 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
   );
   async function addCat(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const authToken = await getValidAdminSession();
-    setToken(authToken);
-    const f = new FormData(e.currentTarget),
-      name = String(f.get("name")),
-      iconFile = f.get("icon_file") as File,
-      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, authToken) : editCat?.icon_url || null;
-    await db(editCat ? `categories?id=eq.${editCat.id}` : "categories", authToken, {
-      method: editCat ? "PATCH" : "POST",
-      body: JSON.stringify({ name, slug: slug(name), icon_url: iconUrl }),
-    });
-    e.currentTarget.reset();
-    setEditCat(null);
-    setMsg(editCat ? "Category updated." : "Category added.");
-    await load(authToken);
+    const form = e.currentTarget;
+    setCategoryImageStatus("Saving category and uploading its image…");
+    try {
+      const authToken = await getValidAdminSession();
+      setToken(authToken);
+      const f = new FormData(form),
+        name = String(f.get("name")),
+        iconFile = f.get("icon_file") as File,
+        iconUrl = iconFile?.size ? await uploadProductImage(iconFile, authToken) : editCat?.icon_url || null;
+      await db(editCat ? `categories?id=eq.${editCat.id}` : "categories", authToken, {
+        method: editCat ? "PATCH" : "POST",
+        body: JSON.stringify({ name, slug: slug(name), icon_url: iconUrl }),
+      });
+      form.reset();
+      setEditCat(null);
+      setCategoryImageStatus(iconUrl ? "Category and image saved successfully." : "Category saved successfully.");
+      setMsg(editCat ? "Category updated." : "Category added.");
+      await load(authToken);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Category image could not be saved.";
+      setCategoryImageStatus(message);
+      setMsg(message);
+    }
   }
   async function addSub(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -697,8 +707,9 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                   <h3>{editCat ? "Edit category" : "Add category"}</h3>
                   {editCat?.icon_url && <Image src={editCat.icon_url} alt="Current category logo" width={70} height={70} unoptimized />}
                   <input name="name" defaultValue={editCat?.name || ""} placeholder="Category name" required />
-                  <label>Category logo / icon<input name="icon_file" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.avif,.heic,.heif" /></label>
-                  <button className="primary">{editCat ? "Save category" : "Add category"}</button>
+                  <label>Category image<input name="icon_file" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.avif,.heic,.heif" onChange={(event) => setCategoryImageStatus(event.target.files?.[0] ? `${event.target.files[0].name} selected. Click Save category.` : "")} /></label>
+                  {categoryImageStatus && <small role="status">{categoryImageStatus}</small>}
+                  <button className="primary" disabled={categoryImageStatus.startsWith("Saving")}>{editCat ? "Save category" : "Add category"}</button>
                   {editCat && <button type="button" className="textButton" onClick={() => setEditCat(null)}>Cancel</button>}
                 </form>
                 <form key={editSub?.id || "new-sub"} onSubmit={addSub} className="categoryEditorForm">
