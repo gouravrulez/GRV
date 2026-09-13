@@ -20,7 +20,7 @@ export async function signIn(email: string, password: string) {
   const data = await response.json();
   if (!response.ok)
     throw new Error(data.error_description || data.msg || "Sign in failed.");
-  return data as { access_token: string; user: { id: string; email?: string } };
+  return data as CustomerSession;
 }
 
 export async function signUp(email: string, password: string, name: string) {

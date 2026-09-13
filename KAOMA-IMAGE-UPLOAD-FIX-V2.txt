@@ -1,0 +1,18 @@
+KAOMA ADMIN IMAGE UPLOAD FIX V2
+
+1. Upload all three code files from this ZIP to the GRV KAOMA GitHub repository, preserving their folders.
+2. Wait until the Vercel production deployment shows Ready.
+3. Open https://kaoma.in/admin-login in an Incognito window and sign in again once.
+4. Open Products & Inventory and select one JPG, PNG or WebP main image.
+5. Wait until its preview and the message "Main product image uploaded" appear.
+6. Select the additional images and wait until their previews appear.
+7. Click Add product or Save changes to save the product information.
+
+FIXES INCLUDED
+- Main and additional images upload immediately after selection.
+- The main-image preview appears before the product is saved.
+- Additional images unlock after the main image finishes.
+- Expired admin sessions renew automatically.
+- File-specific type and size errors are displayed.
+
+Accepted images: JPG, JPEG, PNG and WebP. Convert HEIC/HEIF to JPG first.
