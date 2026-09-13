@@ -128,8 +128,7 @@ export function clearCustomerSession() {
 
 export function saveAdminSession(session: CustomerSession) {
   sessionStorage.setItem("kaoma_admin_token", session.access_token);
-  if (session.refresh_token)
-    sessionStorage.setItem("kaoma_admin_refresh_token", session.refresh_token);
+  if (session.refresh_token) sessionStorage.setItem("kaoma_admin_refresh_token", session.refresh_token);
 }
 
 export function clearAdminSession() {
@@ -168,18 +167,10 @@ export async function getValidAdminSession() {
   const accessToken = sessionStorage.getItem("kaoma_admin_token") || "";
   const refreshToken = sessionStorage.getItem("kaoma_admin_refresh_token") || "";
   if (accessToken && !tokenExpiresSoon(accessToken)) return accessToken;
-  if (!refreshToken) {
-    clearAdminSession();
-    throw new Error("Your admin session has expired. Please sign in again.");
-  }
-  try {
-    const session = await refreshCustomerSession(refreshToken);
-    saveAdminSession(session);
-    return session.access_token;
-  } catch (error) {
-    clearAdminSession();
-    throw error;
-  }
+  if (!refreshToken) { clearAdminSession(); throw new Error("Your admin session expired. Please sign in again."); }
+  const session = await refreshCustomerSession(refreshToken);
+  saveAdminSession(session);
+  return session.access_token;
 }
 
 export async function getCurrentUser(token: string) {
@@ -194,35 +185,33 @@ export async function getCurrentUser(token: string) {
 
 export async function uploadProductImage(file: File, token: string) {
   if (!url || !key) throw new Error("Supabase is not configured yet.");
-  if (!file.type.match(/^image\/(jpeg|png|webp)$/)) throw new Error(`${file.name}: choose a JPG, PNG or WebP image. HEIC files must first be converted to JPG.`);
-  if (file.size > 25 * 1024 * 1024) throw new Error(`${file.name}: the original image must be smaller than 25 MB.`);
-  let uploadFile = file;
-  // Files already accepted by the bucket are uploaded unchanged. Avoiding a
-  // canvas conversion here prevents large/complex images from hanging before
-  // the network request begins. Only oversized files need client compression.
-  if (file.size > 4.5 * 1024 * 1024) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  const reportedType = file.type.toLowerCase();
+  const normalizedType = reportedType === "image/jpg" ? "image/jpeg" : reportedType;
+  const supportedType = /^image\/(jpeg|png|webp)$/.test(normalizedType);
+  const looksLikeImage = reportedType.startsWith("image/") || /^(jpg|jpeg|png|webp|avif|heic|heif)$/.test(extension);
+  if (!looksLikeImage) throw new Error(`${file.name}: choose a photo from your gallery.`);
+  if (file.size > 25 * 1024 * 1024) throw new Error(`${file.name}: image must be smaller than 25 MB.`);
+  let uploadFile = normalizedType && normalizedType !== file.type ? new File([file], file.name, { type: normalizedType }) : file;
+  if (!supportedType || file.size > 4.5 * 1024 * 1024) {
     try {
       const compression = (async () => {
         const bitmap = await createImageBitmap(file);
-        const maxSide = 1800;
-        const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+        const scale = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height));
         const canvas = document.createElement("canvas");
         canvas.width = Math.max(1, Math.round(bitmap.width * scale));
         canvas.height = Math.max(1, Math.round(bitmap.height * scale));
         const context = canvas.getContext("2d");
-        if (!context) throw new Error("Image processing is unavailable in this browser.");
+        if (!context) throw new Error("Image processing unavailable.");
         context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
         bitmap.close();
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", .8));
-        if (!blob) throw new Error("Image compression failed.");
+        if (!blob) throw new Error("Image conversion failed.");
         return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
       })();
-      uploadFile = await Promise.race([
-        compression,
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Image processing timed out.")), 12000)),
-      ]);
+      uploadFile = await Promise.race([compression, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 12000))]);
     } catch {
-      throw new Error(`${file.name}: automatic compression could not finish. Please use a JPG/WebP smaller than 5 MB.`);
+      throw new Error(`${file.name}: Android image format could not be converted. In Gallery choose Edit → Save copy, or export it as JPG, then upload the JPG.`);
     }
   }
   const safe = uploadFile.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
@@ -243,10 +232,7 @@ export async function uploadProductImage(file: File, token: string) {
   );
   if (!response.ok) {
     const details = await response.text();
-    if (response.status === 401 || details.includes("JWT expired"))
-      throw new Error("Your admin session expired during upload. Sign in again and retry.");
-    if (response.status === 413 || details.toLowerCase().includes("maximum allowed size"))
-      throw new Error(`${file.name}: the compressed image is still larger than the 5 MB upload limit.`);
+    if (response.status === 401 || details.includes("JWT expired")) throw new Error("Admin session expired. Sign in again and retry.");
     throw new Error(`${file.name}: ${details || "image upload failed."}`);
   }
   return `${url}/storage/v1/object/public/product-images/${path}`;

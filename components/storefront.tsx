@@ -143,8 +143,9 @@ const markets = [
   { country: "Canada", currency: "CAD", symbol: "C$", rate: 0.016, dialCode: "+1" },
   { country: "Singapore", currency: "SGD", symbol: "S$", rate: 0.016, dialCode: "+65" },
 ];
-export default function Storefront({ initialProducts = [] }: { initialProducts?: Product[] }) {
-  const [active, setActive] = useState("Shop all"),
+export default function Storefront({ initialProducts = [], initialCategorySlug = "" }: { initialProducts?: Product[]; initialCategorySlug?: string }) {
+  const initialCategoryName = initialCategorySlug ? initialCategorySlug.split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ") : "Shop all";
+  const [active, setActive] = useState(initialCategoryName),
     [search, setSearch] = useState(""),
     [cartOpen, setCartOpen] = useState(false),
     [checkout, setCheckout] = useState(false),
@@ -185,6 +186,11 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
         if (next.length) setAvailableMarkets(next);
       }).catch(() => undefined);
   }, []);
+  useEffect(() => {
+    if (!initialCategorySlug || !catalogCategories.length) return;
+    const matchingCategory = catalogCategories.find((category) => category.slug === initialCategorySlug);
+    if (matchingCategory) setActive(matchingCategory.name);
+  }, [catalogCategories, initialCategorySlug]);
   useEffect(() => {
     setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
     setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
@@ -1213,14 +1219,6 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
           <a href="/duties">Customs & duties</a>
           <a href="/returns">Shipping & returns</a>
           <a href="/order-tracking">Order tracking</a>
-          <a href="/packaging">Discreet packaging</a>
-        </div>
-        <div>
-          <b>Legal & privacy</b>
-          <a href="/privacy">Privacy policy</a>
-          <a href="/terms">Terms & conditions</a>
-          <a href="/adult-policy">Adults-only policy</a>
-          <a href="/returns">Returns & cancellations</a>
         </div>
         <div>
           <b>Connect with KAOMA</b>

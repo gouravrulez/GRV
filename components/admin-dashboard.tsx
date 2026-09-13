@@ -16,7 +16,7 @@ import {
   Store,
   Users,
 } from "lucide-react";
-import { clearAdminSession, db, getValidAdminSession, uploadProductImage } from "@/lib/supabase-rest";
+import { db, getValidAdminSession, uploadProductImage } from "@/lib/supabase-rest";
 type Cat = { id: string; name: string; slug: string; icon_url?: string | null };
 type Sub = { id: string; category_id: string; name: string; slug: string; icon_url?: string | null };
 type Product = {
@@ -222,56 +222,24 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
       location.replace("/admin-login");
       return;
     }
-    void getValidAdminSession().then((validToken) => {
-      setToken(validToken);
-      return load(validToken);
-    }).catch(() => location.replace("/admin-login"));
+    void getValidAdminSession().then((validToken) => { setToken(validToken); return load(validToken); }).catch(() => location.replace("/admin-login"));
   }, []);
   useEffect(() => setProductImages(edit?.image_urls || []), [edit]);
 
-  async function uploadMainSelection(fileInput: HTMLInputElement) {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setImageUploadStatus(`Uploading main image: ${file.name}…`);
-    setMsg(`Uploading main image: ${file.name}…`);
-    try {
-      const authToken = await getValidAdminSession();
-      setToken(authToken);
-      const imageUrl = await uploadProductImage(file, authToken);
-      setProductImages((current) => [imageUrl, ...current.slice(1)]);
-      setImageUploadStatus("Main image uploaded successfully. Preview is shown below.");
-      setMsg("Main product image uploaded. Now save the product details.");
-    } catch (error) {
-      setMsg(error instanceof Error ? error.message : "Main image upload failed.");
-      setImageUploadStatus(error instanceof Error ? error.message : "Main image upload failed.");
-    } finally {
-      fileInput.value = "";
-      setUploading(false);
-    }
+  async function uploadMainSelection(input: HTMLInputElement) {
+    const file = input.files?.[0]; if (!file) return;
+    setUploading(true); setImageUploadStatus(`Uploading ${file.name}…`);
+    try { const authToken = await getValidAdminSession(); setToken(authToken); const imageUrl = await uploadProductImage(file, authToken); setProductImages((current) => [imageUrl, ...current.slice(1)]); setImageUploadStatus("Main image uploaded successfully. Preview shown below."); }
+    catch (error) { setImageUploadStatus(error instanceof Error ? error.message : "Upload failed."); }
+    finally { input.value = ""; setUploading(false); }
   }
 
-  async function uploadGallerySelection(fileInput: HTMLInputElement) {
-    const files = Array.from(fileInput.files || []);
-    if (!files.length) return;
-    setUploading(true);
-    setImageUploadStatus(`Uploading ${files.length} additional image${files.length === 1 ? "" : "s"}…`);
-    setMsg(`Uploading ${files.length} additional image${files.length === 1 ? "" : "s"}…`);
-    try {
-      const authToken = await getValidAdminSession();
-      setToken(authToken);
-      const imageUrls: string[] = [];
-      for (const file of files) imageUrls.push(await uploadProductImage(file, authToken));
-      setProductImages((current) => [...current, ...imageUrls]);
-      setImageUploadStatus(`${imageUrls.length} additional image${imageUrls.length === 1 ? "" : "s"} uploaded successfully.`);
-      setMsg(`${imageUrls.length} additional image${imageUrls.length === 1 ? "" : "s"} uploaded. Now save the product details.`);
-    } catch (error) {
-      setMsg(error instanceof Error ? error.message : "Additional image upload failed.");
-      setImageUploadStatus(error instanceof Error ? error.message : "Additional image upload failed.");
-    } finally {
-      fileInput.value = "";
-      setUploading(false);
-    }
+  async function uploadGallerySelection(input: HTMLInputElement) {
+    const files = Array.from(input.files || []); if (!files.length) return;
+    setUploading(true); setImageUploadStatus(`Uploading ${files.length} additional image${files.length === 1 ? "" : "s"}…`);
+    try { const authToken = await getValidAdminSession(); setToken(authToken); const urls: string[] = []; for (const file of files) urls.push(await uploadProductImage(file, authToken)); setProductImages((current) => [...current, ...urls]); setImageUploadStatus(`${urls.length} additional image${urls.length === 1 ? "" : "s"} uploaded successfully.`); }
+    catch (error) { setImageUploadStatus(error instanceof Error ? error.message : "Upload failed."); }
+    finally { input.value = ""; setUploading(false); }
   }
   const branding = useMemo(
     () => settings.find((item) => item.key === "branding")?.value || {},
@@ -287,26 +255,30 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
   );
   async function addCat(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const authToken = await getValidAdminSession();
+    setToken(authToken);
     const f = new FormData(e.currentTarget),
       name = String(f.get("name")),
       iconFile = f.get("icon_file") as File,
-      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, token) : editCat?.icon_url || null;
-    await db(editCat ? `categories?id=eq.${editCat.id}` : "categories", token, {
+      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, authToken) : editCat?.icon_url || null;
+    await db(editCat ? `categories?id=eq.${editCat.id}` : "categories", authToken, {
       method: editCat ? "PATCH" : "POST",
       body: JSON.stringify({ name, slug: slug(name), icon_url: iconUrl }),
     });
     e.currentTarget.reset();
     setEditCat(null);
     setMsg(editCat ? "Category updated." : "Category added.");
-    await load(token);
+    await load(authToken);
   }
   async function addSub(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const authToken = await getValidAdminSession();
+    setToken(authToken);
     const f = new FormData(e.currentTarget),
       name = String(f.get("name")),
       iconFile = f.get("icon_file") as File,
-      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, token) : editSub?.icon_url || null;
-    await db(editSub ? `subcategories?id=eq.${editSub.id}` : "subcategories", token, {
+      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, authToken) : editSub?.icon_url || null;
+    await db(editSub ? `subcategories?id=eq.${editSub.id}` : "subcategories", authToken, {
       method: editSub ? "PATCH" : "POST",
       body: JSON.stringify({
         name,
@@ -318,7 +290,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     e.currentTarget.reset();
     setEditSub(null);
     setMsg(editSub ? "Subcategory updated." : "Subcategory added.");
-    await load(token);
+    await load(authToken);
   }
   async function saveProduct(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -333,13 +305,11 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     setUploading(true);
     setMsg("");
     try {
-      const authToken = await getValidAdminSession();
-      setToken(authToken);
       const uploadedMain = mainFile
-          ? await uploadProductImage(mainFile, authToken)
+          ? await uploadProductImage(mainFile, token)
           : productImages[0] || "",
         uploadedGallery = await Promise.all(
-          galleryFiles.map((file) => uploadProductImage(file, authToken)),
+          galleryFiles.map((file) => uploadProductImage(file, token)),
         ),
         images = [uploadedMain, ...productImages.slice(1), ...uploadedGallery].filter(Boolean),
         name = String(f.get("name")),
@@ -389,7 +359,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
         new_arrival: f.get("new_arrival") === "on",
         image_urls: images,
       };
-      await db(edit ? `products?id=eq.${edit.id}` : "products", authToken, {
+      await db(edit ? `products?id=eq.${edit.id}` : "products", token, {
         method: edit ? "PATCH" : "POST",
         body: JSON.stringify(body),
       });
@@ -397,7 +367,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
       setProductImages([]);
       formElement.reset();
       setMsg("Product saved successfully.");
-      await load(authToken);
+      await load(token);
     } catch (error) {
       setMsg(
         error instanceof Error
@@ -523,7 +493,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     await load(token);
   }
   function logout() {
-    clearAdminSession();
+    sessionStorage.removeItem("kaoma_admin_token");
     location.replace("/admin-login");
   }
   if (!ready)
@@ -727,7 +697,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                   <h3>{editCat ? "Edit category" : "Add category"}</h3>
                   {editCat?.icon_url && <Image src={editCat.icon_url} alt="Current category logo" width={70} height={70} unoptimized />}
                   <input name="name" defaultValue={editCat?.name || ""} placeholder="Category name" required />
-                  <label>Category logo / icon<input name="icon_file" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+                  <label>Category logo / icon<input name="icon_file" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.avif,.heic,.heif" /></label>
                   <button className="primary">{editCat ? "Save category" : "Add category"}</button>
                   {editCat && <button type="button" className="textButton" onClick={() => setEditCat(null)}>Cancel</button>}
                 </form>
@@ -743,7 +713,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                     ))}
                   </select>
                   <input name="name" defaultValue={editSub?.name || ""} placeholder="Subcategory name" required />
-                  <label>Subcategory logo / icon<input name="icon_file" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+                  <label>Subcategory logo / icon<input name="icon_file" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.avif,.heic,.heif" /></label>
                   <button className="primary">{editSub ? "Save subcategory" : "Add subcategory"}</button>
                   {editSub && <button type="button" className="textButton" onClick={() => setEditSub(null)}>Cancel</button>}
                 </form>
@@ -910,7 +880,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                       ))}
                   </fieldset>
                   <section className="adminImageUploads">
-                  <p className="adminWide imageUploadNote">Instant image uploader active · select the main image first</p>
+                  <p className="adminWide imageUploadNote">Android & iPhone uploader active · select the main image first</p>
                   <label className="imageInput mainImageUpload">
                     <ImagePlus />
                     <span>
@@ -923,7 +893,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                       name="main_image"
                       type="file"
                       required={!edit && productImages.length === 0}
-                      accept="image/jpeg,image/png,image/webp"
+                      accept="image/*,.jpg,.jpeg,.png,.webp,.avif,.heic,.heif"
                       disabled={uploading}
                       onChange={(event) => void uploadMainSelection(event.currentTarget)}
                     />
@@ -938,7 +908,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                       name="gallery_images"
                       type="file"
                       multiple
-                      accept="image/jpeg,image/png,image/webp"
+                      accept="image/*,.jpg,.jpeg,.png,.webp,.avif,.heic,.heif"
                       disabled={uploading || productImages.length === 0}
                       onChange={(event) => void uploadGallerySelection(event.currentTarget)}
                     />
@@ -947,9 +917,6 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                   {imageUploadStatus && <p className="adminWide imageUploadNote" role="status">{imageUploadStatus}</p>}
                   {!edit && productImages.length === 0 && (
                     <p className="imageUploadNote">A main image must be selected before the product is published.</p>
-                  )}
-                  {productImages.length === 0 && (
-                    <p className="imageUploadNote">Upload the main image first. Additional images will unlock after it finishes.</p>
                   )}
                   {productImages.length > 0 && (
                     <div className="imageManager">
