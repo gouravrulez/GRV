@@ -20,7 +20,7 @@ export async function signIn(email: string, password: string) {
   const data = await response.json();
   if (!response.ok)
     throw new Error(data.error_description || data.msg || "Sign in failed.");
-  return data as CustomerSession;
+  return data as { access_token: string; user: { id: string; email?: string } };
 }
 
 export async function signUp(email: string, password: string, name: string) {
@@ -126,6 +126,17 @@ export function clearCustomerSession() {
   localStorage.removeItem("kaoma_customer_email");
 }
 
+export function saveAdminSession(session: CustomerSession) {
+  sessionStorage.setItem("kaoma_admin_token", session.access_token);
+  if (session.refresh_token)
+    sessionStorage.setItem("kaoma_admin_refresh_token", session.refresh_token);
+}
+
+export function clearAdminSession() {
+  sessionStorage.removeItem("kaoma_admin_token");
+  sessionStorage.removeItem("kaoma_admin_refresh_token");
+}
+
 function tokenExpiresSoon(token: string) {
   try {
     const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
@@ -153,6 +164,24 @@ export async function getValidCustomerSession() {
   }
 }
 
+export async function getValidAdminSession() {
+  const accessToken = sessionStorage.getItem("kaoma_admin_token") || "";
+  const refreshToken = sessionStorage.getItem("kaoma_admin_refresh_token") || "";
+  if (accessToken && !tokenExpiresSoon(accessToken)) return accessToken;
+  if (!refreshToken) {
+    clearAdminSession();
+    throw new Error("Your admin session has expired. Please sign in again.");
+  }
+  try {
+    const session = await refreshCustomerSession(refreshToken);
+    saveAdminSession(session);
+    return session.access_token;
+  } catch (error) {
+    clearAdminSession();
+    throw error;
+  }
+}
+
 export async function getCurrentUser(token: string) {
   if (!url || !key) throw new Error("Supabase is not configured yet.");
   const response = await fetch(`${url}/auth/v1/user`, {
@@ -165,7 +194,8 @@ export async function getCurrentUser(token: string) {
 
 export async function uploadProductImage(file: File, token: string) {
   if (!url || !key) throw new Error("Supabase is not configured yet.");
-  if (!file.type.match(/^image\/(jpeg|png|webp)$/)) throw new Error("Choose a JPG, PNG or WebP image.");
+  if (!file.type.match(/^image\/(jpeg|png|webp)$/)) throw new Error(`${file.name}: choose a JPG, PNG or WebP image. HEIC files must first be converted to JPG.`);
+  if (file.size > 25 * 1024 * 1024) throw new Error(`${file.name}: the original image must be smaller than 25 MB.`);
   let uploadFile = file;
   try {
     const bitmap = await createImageBitmap(file), maxSide = 1800,
@@ -197,8 +227,14 @@ export async function uploadProductImage(file: File, token: string) {
       body: uploadFile,
     },
   );
-  if (!response.ok)
-    throw new Error((await response.text()) || "Image upload failed.");
+  if (!response.ok) {
+    const details = await response.text();
+    if (response.status === 401 || details.includes("JWT expired"))
+      throw new Error("Your admin session expired during upload. Sign in again and retry.");
+    if (response.status === 413 || details.toLowerCase().includes("maximum allowed size"))
+      throw new Error(`${file.name}: the compressed image is still larger than the 5 MB upload limit.`);
+    throw new Error(`${file.name}: ${details || "image upload failed."}`);
+  }
   return `${url}/storage/v1/object/public/product-images/${path}`;
 }
 

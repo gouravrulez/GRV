@@ -16,7 +16,7 @@ import {
   Store,
   Users,
 } from "lucide-react";
-import { db, uploadProductImage } from "@/lib/supabase-rest";
+import { clearAdminSession, db, getValidAdminSession, uploadProductImage } from "@/lib/supabase-rest";
 type Cat = { id: string; name: string; slug: string; icon_url?: string | null };
 type Sub = { id: string; category_id: string; name: string; slug: string; icon_url?: string | null };
 type Product = {
@@ -221,8 +221,13 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
       location.replace("/admin-login");
       return;
     }
-    setToken(saved);
-    void load(saved);
+    void getValidAdminSession().then((validToken) => {
+      setToken(validToken);
+      return load(validToken);
+    }).catch((error) => {
+      setMsg(error instanceof Error ? error.message : "Your admin session has expired.");
+      location.replace("/admin-login");
+    });
   }, []);
   useEffect(() => setProductImages(edit?.image_urls || []), [edit]);
   const branding = useMemo(
@@ -239,26 +244,30 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
   );
   async function addCat(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const authToken = await getValidAdminSession();
+    setToken(authToken);
     const f = new FormData(e.currentTarget),
       name = String(f.get("name")),
       iconFile = f.get("icon_file") as File,
-      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, token) : editCat?.icon_url || null;
-    await db(editCat ? `categories?id=eq.${editCat.id}` : "categories", token, {
+      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, authToken) : editCat?.icon_url || null;
+    await db(editCat ? `categories?id=eq.${editCat.id}` : "categories", authToken, {
       method: editCat ? "PATCH" : "POST",
       body: JSON.stringify({ name, slug: slug(name), icon_url: iconUrl }),
     });
     e.currentTarget.reset();
     setEditCat(null);
     setMsg(editCat ? "Category updated." : "Category added.");
-    await load(token);
+    await load(authToken);
   }
   async function addSub(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const authToken = await getValidAdminSession();
+    setToken(authToken);
     const f = new FormData(e.currentTarget),
       name = String(f.get("name")),
       iconFile = f.get("icon_file") as File,
-      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, token) : editSub?.icon_url || null;
-    await db(editSub ? `subcategories?id=eq.${editSub.id}` : "subcategories", token, {
+      iconUrl = iconFile?.size ? await uploadProductImage(iconFile, authToken) : editSub?.icon_url || null;
+    await db(editSub ? `subcategories?id=eq.${editSub.id}` : "subcategories", authToken, {
       method: editSub ? "PATCH" : "POST",
       body: JSON.stringify({
         name,
@@ -270,7 +279,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     e.currentTarget.reset();
     setEditSub(null);
     setMsg(editSub ? "Subcategory updated." : "Subcategory added.");
-    await load(token);
+    await load(authToken);
   }
   async function saveProduct(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -285,11 +294,13 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     setUploading(true);
     setMsg("");
     try {
+      const authToken = await getValidAdminSession();
+      setToken(authToken);
       const uploadedMain = mainFile
-          ? await uploadProductImage(mainFile, token)
+          ? await uploadProductImage(mainFile, authToken)
           : productImages[0] || "",
         uploadedGallery = await Promise.all(
-          galleryFiles.map((file) => uploadProductImage(file, token)),
+          galleryFiles.map((file) => uploadProductImage(file, authToken)),
         ),
         images = [uploadedMain, ...productImages.slice(1), ...uploadedGallery].filter(Boolean),
         name = String(f.get("name")),
@@ -339,7 +350,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
         new_arrival: f.get("new_arrival") === "on",
         image_urls: images,
       };
-      await db(edit ? `products?id=eq.${edit.id}` : "products", token, {
+      await db(edit ? `products?id=eq.${edit.id}` : "products", authToken, {
         method: edit ? "PATCH" : "POST",
         body: JSON.stringify(body),
       });
@@ -347,7 +358,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
       setProductImages([]);
       formElement.reset();
       setMsg("Product saved successfully.");
-      await load(token);
+      await load(authToken);
     } catch (error) {
       setMsg(
         error instanceof Error
@@ -415,10 +426,6 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
           eyebrow: String(f.get("eyebrow")),
           heading: String(f.get("heading")),
           support_email: String(f.get("support_email")),
-          business_name: String(f.get("business_name")),
-          business_address: String(f.get("business_address")),
-          support_phone: String(f.get("support_phone")),
-          grievance_contact: String(f.get("grievance_contact")),
         };
       await Promise.all(
         [
@@ -477,7 +484,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     await load(token);
   }
   function logout() {
-    sessionStorage.removeItem("kaoma_admin_token");
+    clearAdminSession();
     location.replace("/admin-login");
   }
   if (!ready)
@@ -1173,22 +1180,6 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                       homepage.support_email || "kaomaglobal@gmail.com"
                     }
                   />
-                </label>
-                <label>
-                  Legal business / owner name
-                  <input name="business_name" defaultValue={homepage.business_name || "KAOMA"} required />
-                </label>
-                <label>
-                  Customer support phone
-                  <input name="support_phone" defaultValue={homepage.support_phone || ""} placeholder="Include country code" />
-                </label>
-                <label className="adminFullField">
-                  Complete business postal address
-                  <textarea name="business_address" defaultValue={homepage.business_address || ""} placeholder="House/building, street, city, state, PIN code, India" />
-                </label>
-                <label className="adminFullField">
-                  Grievance contact name and email
-                  <input name="grievance_contact" defaultValue={homepage.grievance_contact || ""} placeholder="Name · email address" />
                 </label>
                 <button className="primary" disabled={uploading}>
                   <Settings />

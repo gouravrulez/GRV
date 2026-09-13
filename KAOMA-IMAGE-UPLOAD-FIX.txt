@@ -1,0 +1,21 @@
+KAOMA ADMIN PRODUCT IMAGE UPLOAD FIX
+
+WHAT WAS FIXED
+- Admin sessions now store and renew the Supabase refresh token automatically.
+- Main and additional product uploads no longer fail silently after the access token expires.
+- Upload errors now identify the exact file and explain expired-session, type and size problems.
+- Main image and multiple additional images remain separate in the product editor.
+
+UPLOAD STEPS
+1. Upload the three folders/files from this ZIP to the GRV KAOMA GitHub repository.
+2. Commit the upload and wait until the KAOMA Vercel production deployment is Ready.
+3. Open https://kaoma.in/admin-login in a private/incognito window.
+4. Sign in again. This one new login is required so the browser receives the refresh token.
+5. Open Products & Inventory and test one JPG, PNG or WebP main image.
+6. Select one or more additional images and save the product.
+
+IMAGE RULES
+- Accepted: JPG, JPEG, PNG and WebP.
+- HEIC/HEIF images from an iPhone must first be exported or converted to JPG.
+- Original file: maximum 25 MB. The site automatically resizes and compresses it.
+- Supabase stores a maximum 5 MB compressed result.

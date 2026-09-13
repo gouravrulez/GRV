@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import Image from "next/image";
 import { ArrowLeft, Eye, EyeOff, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
-import { signIn, supabaseReady } from "@/lib/supabase-rest";
+import { saveAdminSession, signIn, supabaseReady } from "@/lib/supabase-rest";
 
 export default function AdminLogin() {
   const [error, setError] = useState("");
@@ -15,7 +15,7 @@ export default function AdminLogin() {
     const form = new FormData(event.currentTarget);
     try {
       const session = await signIn(String(form.get("email")), String(form.get("password")));
-      sessionStorage.setItem("kaoma_admin_token", session.access_token);
+      saveAdminSession(session);
       window.location.assign("/admin");
     } catch (e) { setError(e instanceof Error ? e.message : "Sign in failed."); setBusy(false); }
   }
