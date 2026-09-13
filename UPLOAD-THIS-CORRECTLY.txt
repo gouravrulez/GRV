@@ -1,0 +1,23 @@
+IMPORTANT — DO NOT UPLOAD THIS ZIP FILE DIRECTLY INTO GITHUB
+
+1. Download the ZIP to your Windows computer.
+2. Right-click it and choose Extract All.
+3. Open the extracted folder. It contains app, components and lib folders.
+4. Open the GRV KAOMA GitHub repository and its production branch.
+5. Choose Add file > Upload files.
+6. Drag the THREE extracted folders (app, components and lib) into GitHub.
+7. Confirm that GitHub shows these exact replacement paths before committing:
+   app/admin-login/page.tsx
+   components/admin-dashboard.tsx
+   lib/supabase-rest.ts
+8. Commit the files and wait for the GRV KAOMA production deployment in Vercel.
+9. Open an Incognito window and sign in again at https://kaoma.in/admin-login.
+10. In Products & Inventory, confirm this line is visible:
+    Instant image uploader active · select the main image first
+
+If that line is not visible, the corrected files are still not deployed.
+
+When the line is visible:
+- Select one JPG/PNG/WebP main image and wait for its preview.
+- Additional images unlock after the main image succeeds.
+- Select additional images, wait for previews, then save the product.

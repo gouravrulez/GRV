@@ -903,6 +903,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                       ))}
                   </fieldset>
                   <section className="adminImageUploads">
+                  <p className="adminWide imageUploadNote">Instant image uploader active · select the main image first</p>
                   <label className="imageInput mainImageUpload">
                     <ImagePlus />
                     <span>
