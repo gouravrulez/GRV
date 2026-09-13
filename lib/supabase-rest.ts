@@ -197,20 +197,34 @@ export async function uploadProductImage(file: File, token: string) {
   if (!file.type.match(/^image\/(jpeg|png|webp)$/)) throw new Error(`${file.name}: choose a JPG, PNG or WebP image. HEIC files must first be converted to JPG.`);
   if (file.size > 25 * 1024 * 1024) throw new Error(`${file.name}: the original image must be smaller than 25 MB.`);
   let uploadFile = file;
-  try {
-    const bitmap = await createImageBitmap(file), maxSide = 1800,
-      scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height)),
-      canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const context = canvas.getContext("2d");
-    if (context) {
-      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", .82));
-      if (blob) uploadFile = new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
+  // Files already accepted by the bucket are uploaded unchanged. Avoiding a
+  // canvas conversion here prevents large/complex images from hanging before
+  // the network request begins. Only oversized files need client compression.
+  if (file.size > 4.5 * 1024 * 1024) {
+    try {
+      const compression = (async () => {
+        const bitmap = await createImageBitmap(file);
+        const maxSide = 1800;
+        const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Image processing is unavailable in this browser.");
+        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        bitmap.close();
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", .8));
+        if (!blob) throw new Error("Image compression failed.");
+        return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
+      })();
+      uploadFile = await Promise.race([
+        compression,
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Image processing timed out.")), 12000)),
+      ]);
+    } catch {
+      throw new Error(`${file.name}: automatic compression could not finish. Please use a JPG/WebP smaller than 5 MB.`);
     }
-    bitmap.close();
-  } catch { uploadFile = file; }
+  }
   const safe = uploadFile.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
   const path = `${crypto.randomUUID()}-${safe}`;
   const response = await fetch(

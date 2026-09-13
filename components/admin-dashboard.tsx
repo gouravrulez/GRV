@@ -169,6 +169,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
   const [editSub, setEditSub] = useState<Sub | null>(null);
   const [productImages, setProductImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [imageUploadStatus, setImageUploadStatus] = useState("");
   async function load(authToken: string) {
     try {
       if (!(await db("admins?select=user_id&limit=1", authToken)).length)
@@ -232,15 +233,18 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     const file = fileInput.files?.[0];
     if (!file) return;
     setUploading(true);
+    setImageUploadStatus(`Uploading main image: ${file.name}…`);
     setMsg(`Uploading main image: ${file.name}…`);
     try {
       const authToken = await getValidAdminSession();
       setToken(authToken);
       const imageUrl = await uploadProductImage(file, authToken);
       setProductImages((current) => [imageUrl, ...current.slice(1)]);
+      setImageUploadStatus("Main image uploaded successfully. Preview is shown below.");
       setMsg("Main product image uploaded. Now save the product details.");
     } catch (error) {
       setMsg(error instanceof Error ? error.message : "Main image upload failed.");
+      setImageUploadStatus(error instanceof Error ? error.message : "Main image upload failed.");
     } finally {
       fileInput.value = "";
       setUploading(false);
@@ -251,6 +255,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     const files = Array.from(fileInput.files || []);
     if (!files.length) return;
     setUploading(true);
+    setImageUploadStatus(`Uploading ${files.length} additional image${files.length === 1 ? "" : "s"}…`);
     setMsg(`Uploading ${files.length} additional image${files.length === 1 ? "" : "s"}…`);
     try {
       const authToken = await getValidAdminSession();
@@ -258,9 +263,11 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
       const imageUrls: string[] = [];
       for (const file of files) imageUrls.push(await uploadProductImage(file, authToken));
       setProductImages((current) => [...current, ...imageUrls]);
+      setImageUploadStatus(`${imageUrls.length} additional image${imageUrls.length === 1 ? "" : "s"} uploaded successfully.`);
       setMsg(`${imageUrls.length} additional image${imageUrls.length === 1 ? "" : "s"} uploaded. Now save the product details.`);
     } catch (error) {
       setMsg(error instanceof Error ? error.message : "Additional image upload failed.");
+      setImageUploadStatus(error instanceof Error ? error.message : "Additional image upload failed.");
     } finally {
       fileInput.value = "";
       setUploading(false);
@@ -937,6 +944,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                     />
                   </label>
                   </section>
+                  {imageUploadStatus && <p className="adminWide imageUploadNote" role="status">{imageUploadStatus}</p>}
                   {!edit && productImages.length === 0 && (
                     <p className="imageUploadNote">A main image must be selected before the product is published.</p>
                   )}
