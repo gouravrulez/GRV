@@ -192,6 +192,13 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
     if (matchingCategory) setActive(matchingCategory.name);
   }, [catalogCategories, initialCategorySlug]);
   useEffect(() => {
+    if (!initialCategorySlug) return;
+    const revealCategory = window.setTimeout(() => {
+      document.getElementById("shop")?.scrollIntoView({ block: "start" });
+    }, 80);
+    return () => window.clearTimeout(revealCategory);
+  }, [initialCategorySlug]);
+  useEffect(() => {
     setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
     setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
     let cancelled = false;
