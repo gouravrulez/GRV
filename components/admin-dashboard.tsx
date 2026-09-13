@@ -415,6 +415,10 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
           eyebrow: String(f.get("eyebrow")),
           heading: String(f.get("heading")),
           support_email: String(f.get("support_email")),
+          business_name: String(f.get("business_name")),
+          business_address: String(f.get("business_address")),
+          support_phone: String(f.get("support_phone")),
+          grievance_contact: String(f.get("grievance_contact")),
         };
       await Promise.all(
         [
@@ -1169,6 +1173,22 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                       homepage.support_email || "kaomaglobal@gmail.com"
                     }
                   />
+                </label>
+                <label>
+                  Legal business / owner name
+                  <input name="business_name" defaultValue={homepage.business_name || "KAOMA"} required />
+                </label>
+                <label>
+                  Customer support phone
+                  <input name="support_phone" defaultValue={homepage.support_phone || ""} placeholder="Include country code" />
+                </label>
+                <label className="adminFullField">
+                  Complete business postal address
+                  <textarea name="business_address" defaultValue={homepage.business_address || ""} placeholder="House/building, street, city, state, PIN code, India" />
+                </label>
+                <label className="adminFullField">
+                  Grievance contact name and email
+                  <input name="grievance_contact" defaultValue={homepage.grievance_contact || ""} placeholder="Name · email address" />
                 </label>
                 <button className="primary" disabled={uploading}>
                   <Settings />

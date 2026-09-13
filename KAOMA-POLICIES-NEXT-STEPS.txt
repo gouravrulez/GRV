@@ -1,0 +1,28 @@
+KAOMA POLICY CENTRE UPDATE
+
+Upload every file and folder from this ZIP to the root of the GRV / KAOMA GitHub repository. Commit the upload and wait for the production deployment to show Ready.
+
+AFTER DEPLOYMENT
+1. Open the KAOMA admin dashboard.
+2. Open Photos, Logo & Homepage.
+3. Complete these new fields:
+   - Legal business / owner name
+   - Complete business postal address with PIN code
+   - Customer-support phone with country code
+   - Grievance contact name and email
+4. Confirm the support email and click Save storefront settings.
+5. Open www.kaoma.in and press Ctrl + Shift + R once.
+6. Open every footer policy link and verify the business details.
+
+POLICIES INCLUDED
+- Worldwide Shipping and Delivery
+- Customs and Duties
+- Returns, Refunds and Cancellations
+- Privacy Policy
+- Terms and Conditions
+- Adults-only and Responsible Shopping Policy
+- Discreet Packaging Policy
+- Contact and Grievance Support
+
+IMPORTANT
+These pages are a practical store-policy starting point and not a substitute for advice from a qualified lawyer or tax/compliance professional. Complete real business details and review the policies before enabling live payments.

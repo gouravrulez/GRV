@@ -1213,6 +1213,14 @@ export default function Storefront({ initialProducts = [] }: { initialProducts?:
           <a href="/duties">Customs & duties</a>
           <a href="/returns">Shipping & returns</a>
           <a href="/order-tracking">Order tracking</a>
+          <a href="/packaging">Discreet packaging</a>
+        </div>
+        <div>
+          <b>Legal & privacy</b>
+          <a href="/privacy">Privacy policy</a>
+          <a href="/terms">Terms & conditions</a>
+          <a href="/adult-policy">Adults-only policy</a>
+          <a href="/returns">Returns & cancellations</a>
         </div>
         <div>
           <b>Connect with KAOMA</b>
