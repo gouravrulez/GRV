@@ -54,6 +54,15 @@ type Order = {
   currency: string;
   status: string;
   payment_status: string;
+  tracking_number?: string | null;
+  shipping_address?: {
+    carrier?: string;
+    expected_dispatch_from?: string;
+    expected_dispatch_to?: string;
+    expected_delivery_from?: string;
+    expected_delivery_to?: string;
+    [key: string]: unknown;
+  };
 };
 type OrderItem = {
   id: string;
@@ -183,7 +192,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
         ),
         db("products?select=*&order=created_at.desc", authToken),
         db(
-          "orders?select=id,order_number,customer_email,total,currency,status,payment_status&order=created_at.desc",
+          "orders?select=id,order_number,customer_email,total,currency,status,payment_status,tracking_number,shipping_address&order=created_at.desc",
           authToken,
         ),
         db(
@@ -400,6 +409,24 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     });
     await load(token);
   }
+  async function updateOrderShipping(event: FormEvent<HTMLFormElement>, order: Order) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const shippingAddress = {
+      ...(order.shipping_address || {}),
+      carrier: String(form.get("carrier") || "India Post"),
+      expected_dispatch_from: String(form.get("expected_dispatch_from") || ""),
+      expected_dispatch_to: String(form.get("expected_dispatch_to") || ""),
+      expected_delivery_from: String(form.get("expected_delivery_from") || ""),
+      expected_delivery_to: String(form.get("expected_delivery_to") || ""),
+    };
+    await db(`orders?id=eq.${order.id}`, token, {
+      method: "PATCH",
+      body: JSON.stringify({ tracking_number: String(form.get("tracking_number") || ""), shipping_address: shippingAddress }),
+    });
+    setMsg("Shipping and expected delivery details saved.");
+    await load(token);
+  }
   async function reviewStatus(id: string, status: string) {
     await db(`reviews?id=eq.${id}`, token, {
       method: "PATCH",
@@ -486,6 +513,12 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
           India: Number(f.get("ship_india")),
           International: Number(f.get("ship_international")),
           free_above: Number(f.get("free_above")),
+          preparation_min_days: Number(f.get("preparation_min_days")),
+          preparation_max_days: Number(f.get("preparation_max_days")),
+          india_delivery_min_days: Number(f.get("india_delivery_min_days")),
+          india_delivery_max_days: Number(f.get("india_delivery_max_days")),
+          international_delivery_min_days: Number(f.get("international_delivery_min_days")),
+          international_delivery_max_days: Number(f.get("international_delivery_max_days")),
         },
         payments: {
           provider: String(f.get("payment_provider")),
@@ -637,6 +670,15 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                           {o.customer_email} · {o.currency} {o.total} · Payment{" "}
                           {o.payment_status}
                         </small>
+                        <form className="orderShippingEditor" onSubmit={(event) => void updateOrderShipping(event, o)}>
+                          <label>Carrier<input name="carrier" defaultValue={o.shipping_address?.carrier || "India Post"} /></label>
+                          <label>Tracking number<input name="tracking_number" defaultValue={o.tracking_number || ""} placeholder="India Post consignment number" /></label>
+                          <label>Preparing from<input name="expected_dispatch_from" type="date" defaultValue={o.shipping_address?.expected_dispatch_from || ""} /></label>
+                          <label>Preparing until<input name="expected_dispatch_to" type="date" defaultValue={o.shipping_address?.expected_dispatch_to || ""} /></label>
+                          <label>Delivery from<input name="expected_delivery_from" type="date" defaultValue={o.shipping_address?.expected_delivery_from || ""} /></label>
+                          <label>Delivery by<input name="expected_delivery_to" type="date" defaultValue={o.shipping_address?.expected_delivery_to || ""} /></label>
+                          <button className="primary">Save delivery details</button>
+                        </form>
                         {orderItems
                           .filter((item) => item.order_id === o.id)
                           .map((item) => (
@@ -1249,6 +1291,13 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                     </label>
                   ),
                 )}
+                <h3 className="adminWide">Preparation and estimated delivery times</h3>
+                <label>Minimum preparation time (business days)<input name="preparation_min_days" type="number" min="0" defaultValue={(commerce.shipping as Record<string, number> | undefined)?.preparation_min_days ?? 1} /></label>
+                <label>Maximum preparation time (business days)<input name="preparation_max_days" type="number" min="0" defaultValue={(commerce.shipping as Record<string, number> | undefined)?.preparation_max_days ?? 3} /></label>
+                <label>India delivery minimum (business days)<input name="india_delivery_min_days" type="number" min="1" defaultValue={(commerce.shipping as Record<string, number> | undefined)?.india_delivery_min_days ?? 2} /></label>
+                <label>India delivery maximum (business days)<input name="india_delivery_max_days" type="number" min="1" defaultValue={(commerce.shipping as Record<string, number> | undefined)?.india_delivery_max_days ?? 7} /></label>
+                <label>International delivery minimum (business days)<input name="international_delivery_min_days" type="number" min="1" defaultValue={(commerce.shipping as Record<string, number> | undefined)?.international_delivery_min_days ?? 7} /></label>
+                <label>International delivery maximum (business days)<input name="international_delivery_max_days" type="number" min="1" defaultValue={(commerce.shipping as Record<string, number> | undefined)?.international_delivery_max_days ?? 21} /></label>
                 <label>
                   India delivery charge (INR)
                   <input
