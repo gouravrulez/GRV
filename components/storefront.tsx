@@ -200,7 +200,7 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
     return () => window.clearTimeout(revealCategory);
   }, [initialCategorySlug]);
   useEffect(() => {
-    setAge(localStorage.getItem("kaoma_age_verified") !== "yes");
+    setAge(sessionStorage.getItem("kaoma_age_verified") !== "yes");
     setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
     setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
     let cancelled = false;
@@ -826,7 +826,7 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
             </DialogDescription>
           </DialogHeader>
           <div className="ageChoices">
-            <button className="ageYes" onClick={() => { localStorage.setItem("kaoma_age_verified", "yes"); setAge(false); }}>
+            <button className="ageYes" onClick={() => { sessionStorage.setItem("kaoma_age_verified", "yes"); setAge(false); }}>
               <CheckCircle2 />
               <span>
                 <b>Yes, I am 18+</b>
