@@ -167,7 +167,10 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
     [availableMarkets, setAvailableMarkets] = useState(markets),
     [market, setMarket] = useState(markets[0]),
     [destinationCode, setDestinationCode] = useState("IN"),
-    [phoneCountryCode, setPhoneCountryCode] = useState("IN");
+    [phoneCountryCode, setPhoneCountryCode] = useState("IN"),
+    [couponCode, setCouponCode] = useState(""),
+    [couponDiscount, setCouponDiscount] = useState(0),
+    [couponBusy, setCouponBusy] = useState(false);
   useEffect(() => {
     // Warm the Razorpay checkout bundle shortly after page load so the payment
     // window opens quickly when the customer is ready.
@@ -354,6 +357,31 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
           ? shippingSettings.India ?? 0
           : shippingSettings.International ?? 0
       : 0;
+  useEffect(() => {
+    const customerToken = localStorage.getItem("kaoma_customer_token");
+    if (!customerToken || !items.length) return;
+    const timer = window.setTimeout(() => {
+      void fetch("/api/cart/recovery", {
+        method:"POST",
+        headers:{Authorization:`Bearer ${customerToken}`,"Content-Type":"application/json"},
+        body:JSON.stringify({items:items.map(item=>({id:item.id,name:item.name,qty:item.qty})),total:subtotal,currency:market.currency,recovered:false})
+      }).catch(()=>undefined);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [cart, subtotal, market.currency]);
+  async function applyCoupon() {
+    const customerToken = localStorage.getItem("kaoma_customer_token") || "";
+    if (!customerToken) { toast.error("Please sign in before applying a promotional code"); return; }
+    if (!couponCode.trim()) return;
+    setCouponBusy(true);
+    try {
+      const response=await fetch("/api/coupons/validate",{method:"POST",headers:{Authorization:`Bearer ${customerToken}`,"Content-Type":"application/json"},body:JSON.stringify({code:couponCode,subtotal})});
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error||"Invalid promotional code.");
+      setCouponCode(result.code);setCouponDiscount(Number(result.discount)||0);toast.success(result.message);
+    } catch(error) { setCouponDiscount(0);toast.error(error instanceof Error?error.message:"Unable to apply code."); }
+    finally { setCouponBusy(false); }
+  }
   const go = (c: string) => {
     setActive(c);
     setTimeout(
@@ -519,7 +547,7 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
       const orderResponse = await fetch("/api/razorpay/order", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ items: checkoutItems, address, currency: market.currency, customer: { fullName, email } }),
+        body: JSON.stringify({ items: checkoutItems, address, currency: market.currency, couponCode: couponDiscount > 0 ? couponCode : "", customer: { fullName, email } }),
         signal: AbortSignal.timeout(20000),
       });
       const orderText = await orderResponse.text();
@@ -1311,15 +1339,10 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
                 ))}
               </div>
               <div className="coupon">
-                <input placeholder="Promotional code" />
-                <button
-                  onClick={() =>
-                    toast.info("Code will be verified at checkout")
-                  }
-                >
-                  Apply
-                </button>
+                <input value={couponCode} onChange={(event)=>{setCouponCode(event.target.value.toUpperCase());setCouponDiscount(0)}} placeholder="Promotional code" />
+                <button type="button" disabled={couponBusy} onClick={()=>void applyCoupon()}>{couponBusy?"Checking…":"Apply"}</button>
               </div>
+              {couponDiscount>0&&<p className="couponSuccess">Coupon {couponCode}: −{formatPrice(couponDiscount)}</p>}
               <div className="total">
                 <span>Subtotal</span>
                 <b>{formatPrice(subtotal)}</b>
@@ -1485,10 +1508,12 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
             <div className="checkoutTotal">
               <span>Subtotal</span>
               <b>{formatPrice(subtotal)}</b>
+              <span>Promotional discount</span>
+              <b>{couponDiscount ? `−${formatPrice(couponDiscount)}` : "—"}</b>
               <span>Estimated shipping</span>
               <b>{shipping ? formatPrice(shipping) : "Free"}</b>
               <span>Order total</span>
-              <b>{formatPrice(subtotal + shipping)}</b>
+              <b>{formatPrice(Math.max(0,subtotal - couponDiscount) + shipping)}</b>
             </div>
             <button className="primary full" disabled={placingOrder}>
               {placingOrder
