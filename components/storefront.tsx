@@ -1510,6 +1510,54 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
                 required
               />
             </label>
+            <section className="cartCouponBox checkoutCouponBox">
+              <div className="cartCouponTitle">
+                <b>Apply a coupon</b>
+                <span>Use a public offer or enter your secret coupon code</span>
+              </div>
+              {!!publicCoupons.length && (
+                <div className="publicCoupons">
+                  {publicCoupons.map((offer) => (
+                    <button
+                      type="button"
+                      key={offer.code}
+                      onClick={() => setCouponCode(offer.code)}
+                    >
+                      <b>{offer.code}</b>
+                      <span>
+                        {offer.label ||
+                          `${offer.discount_value}${
+                            offer.discount_type === "percentage" ? "%" : " INR"
+                          } off`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="coupon">
+                <input
+                  aria-label="Checkout coupon code"
+                  value={couponCode}
+                  onChange={(event) => {
+                    setCouponCode(event.target.value.toUpperCase());
+                    setCouponDiscount(0);
+                  }}
+                  placeholder="ENTER COUPON CODE"
+                />
+                <button
+                  type="button"
+                  disabled={couponBusy || !couponCode.trim()}
+                  onClick={() => void applyCoupon()}
+                >
+                  {couponBusy ? "Checking…" : "Apply coupon"}
+                </button>
+              </div>
+              {couponDiscount > 0 && (
+                <p className="couponSuccess">
+                  ✓ Coupon {couponCode} applied: −{formatPrice(couponDiscount)}
+                </p>
+              )}
+            </section>
             <p className="checkoutMarket">
               <Globe2 /> Checkout currency:{" "}
               <b>
