@@ -6,6 +6,9 @@ export type SeoProduct = {
   name: string;
   description?: string | null;
   short_description?: string | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  brand?: string | null;
   price: number;
   compare_at_price?: number | null;
   currency?: string | null;
@@ -42,7 +45,7 @@ async function read<T>(path: string): Promise<T> {
 export const getSeoProduct = cache(async (slug: string) => {
   try {
     const rows = await read<SeoProduct[]>(
-      `products?select=id,slug,name,description,short_description,price,compare_at_price,currency,sku,stock_quantity,image_urls,updated_at&slug=eq.${encodeURIComponent(slug)}&status=eq.active&limit=1`,
+      `products?select=id,slug,name,description,short_description,seo_title,seo_description,brand,price,compare_at_price,currency,sku,stock_quantity,image_urls,updated_at&slug=eq.${encodeURIComponent(slug)}&status=eq.active&limit=1`,
     );
     return rows[0] ?? null;
   } catch {
