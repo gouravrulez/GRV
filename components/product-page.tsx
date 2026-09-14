@@ -6,6 +6,7 @@ import { Heart, Share2, ShoppingBag, ShieldCheck, Truck } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { toast, Toaster } from "sonner";
 import { db, getCurrentUser, getValidCustomerSession } from "@/lib/supabase-rest";
+import { trackCommerceEvent } from "@/lib/analytics";
 
 type Product = {
   id: string; slug: string; name: string; description?: string; short_description?: string;
@@ -34,6 +35,7 @@ export function ProductPage({ slug }: { slug: string }) {
         const found = rows.find((p) => p.slug === decodeURIComponent(slug) || p.id === slug) || null;
         setAll(rows); setProduct(found);
         setSize(found?.sizes?.[0] || ""); setColour(found?.colours?.[0] || "");
+        if (found) trackCommerceEvent("view_item", { currency: "INR", value: Number(found.price), items: [{ item_id: found.id, item_name: found.name, price: Number(found.price), quantity: 1 }] });
       })
       .catch(() => toast.error("Unable to load this product. Please try again."))
       .finally(() => setLoading(false));
@@ -98,8 +100,8 @@ export function ProductPage({ slug }: { slug: string }) {
         <p className={product.stock_quantity > 0 ? "inStock" : "outStock"}>{product.stock_quantity > 0 ? `In stock · ${product.stock_quantity} available` : "Currently out of stock"}</p>
         {!!product.sizes?.length && <fieldset className="productOptions"><legend>Select size</legend>{product.sizes.map(x => <button className={size === x ? "selected" : ""} onClick={() => setSize(x)} key={x}>{x}</button>)}</fieldset>}
         {!!product.colours?.length && <fieldset className="productOptions"><legend>Select colour</legend>{product.colours.map(x => <button className={colour === x ? "selected" : ""} onClick={() => { setColour(x); const mapped=product.colour_image_map?.[x]; const index=images.indexOf(mapped || ""); if(index>=0)setActiveImage(index); }} key={x}>{x}</button>)}</fieldset>}
-        <div className="productPageActions"><Link className="secondaryBuy" href={actionUrl("cart")}>Add to cart</Link><Link className="primaryBuy" href={actionUrl("buy")}>Buy now</Link></div>
-        <div className="productUtility"><button onClick={() => toast.success("Saved to wishlist")}><Heart/> Wishlist</button><button onClick={() => void share()}><Share2/> Share product</button></div>
+        <div className="productPageActions"><Link className="secondaryBuy" href={actionUrl("cart")} onClick={() => trackCommerceEvent("add_to_cart", { currency: "INR", value: Number(product.price), items: [{ item_id: product.id, item_name: product.name, price: Number(product.price), quantity: 1, item_variant: [size, colour].filter(Boolean).join(" / ") }] })}>Add to cart</Link><Link className="primaryBuy" href={actionUrl("buy")} onClick={() => trackCommerceEvent("add_to_cart", { currency: "INR", value: Number(product.price), items: [{ item_id: product.id, item_name: product.name, price: Number(product.price), quantity: 1, item_variant: [size, colour].filter(Boolean).join(" / ") }] })}>Buy now</Link></div>
+        <div className="productUtility"><button onClick={() => { trackCommerceEvent("add_to_wishlist", { currency: "INR", value: Number(product.price), items: [{ item_id: product.id, item_name: product.name, price: Number(product.price), quantity: 1 }] }); toast.success("Saved to wishlist"); }}><Heart/> Wishlist</button><button onClick={() => void share()}><Share2/> Share product</button></div>
         <div className="productAssurance"><span><ShieldCheck/>Private, secure checkout</span><span><Truck/>Discreet tracked delivery</span></div>
       </article>
     </section>
