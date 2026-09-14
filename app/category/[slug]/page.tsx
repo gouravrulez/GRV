@@ -1,7 +1,20 @@
+import type { Metadata } from "next";
 import Storefront, { type Product } from "@/components/storefront";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const categoryNames: Record<string, string> = {
+ "for-women": "For Women", "for-men": "For Men", "golden-night": "Golden Night",
+ foreplay: "Foreplay", "unique-gifts": "Unique Gifts",
+};
+
+export async function generateMetadata({params}:{params:Promise<{slug:string}>}): Promise<Metadata> {
+ const {slug}=await params;
+ const name=categoryNames[slug] || slug.split("-").map(word=>word.charAt(0).toUpperCase()+word.slice(1)).join(" ");
+ const description=`Explore KAOMA's ${name} collection with discreet delivery across India and supported international destinations.`;
+ return {title:name,description,alternates:{canonical:`/category/${slug}`},openGraph:{title:`${name} | KAOMA`,description,url:`/category/${slug}`,type:"website"}};
+}
 
 async function getCategoryProducts(): Promise<Product[]> {
  const url=process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/,"");

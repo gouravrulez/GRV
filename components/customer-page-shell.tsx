@@ -49,6 +49,9 @@ export function CustomerPageShell({
         <span>KAOMA · Private, respectful support for adults worldwide.</span>
         <span>
           <a href="mailto:kaomaglobal@gmail.com">Email</a> ·{" "}
+          <a href="/privacy">Privacy</a> ·{" "}
+          <a href="/terms">Terms</a> ·{" "}
+          <a href="/cancellation-refund">Refunds</a> ·{" "}
           <a
             href="https://www.instagram.com/kaoma.in/"
             target="_blank"

@@ -1,7 +1,7 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CustomerPageShell } from "@/components/customer-page-shell";
 import { CustomerAccount } from "@/components/customer-account";
-import { LegalPage } from "@/components/legal-page";
 
 const pages = {
   categories: {
@@ -58,26 +58,22 @@ const pages = {
     title: "Worldwide delivery",
     intro:
       "Discreet tracked delivery is planned for India and supported international destinations. Live rates will be shown at checkout.",
-    kind: "legal",
+    kind: "shipping",
   },
   duties: {
     eyebrow: "INTERNATIONAL ORDERS",
     title: "Customs and duties",
     intro:
       "Import taxes and customs charges vary by destination. Country-specific information will be displayed before international checkout.",
-    kind: "legal",
+    kind: "duties",
   },
   returns: {
     eyebrow: "CUSTOMER CARE",
     title: "Shipping and returns",
     intro:
-      "A clear hygiene-conscious return policy and destination-specific delivery terms will be published before sales begin.",
-    kind: "legal",
+      "Review our hygiene-conscious return conditions, cancellation process and support options before ordering.",
+    kind: "returns",
   },
-  privacy: { eyebrow: "YOUR PRIVACY", title: "Privacy policy", intro: "How KAOMA collects, uses, protects and respects your personal information.", kind: "legal" },
-  terms: { eyebrow: "STORE TERMS", title: "Terms and conditions", intro: "The terms that apply when browsing, creating an account or purchasing from KAOMA.", kind: "legal" },
-  "adult-policy": { eyebrow: "ADULTS ONLY", title: "Age and responsible shopping policy", intro: "KAOMA products and content are intended only for adults aged 18 years or older.", kind: "legal" },
-  packaging: { eyebrow: "PRIVACY, ALWAYS", title: "Discreet packaging policy", intro: "How KAOMA protects customer privacy throughout packing, delivery and communication.", kind: "legal" },
   "order-tracking": {
     eyebrow: "YOUR ORDER",
     title: "Track an order",
@@ -97,6 +93,20 @@ const categories = [
 
 export function generateStaticParams() {
   return Object.keys(pages).map((page) => ({ page }));
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ page: string }> }): Promise<Metadata> {
+  const { page } = await params;
+  const data = pages[page as keyof typeof pages];
+  if (!data) return {};
+  const privatePage = page === "account" || page === "wishlist";
+  return {
+    title: data.title,
+    description: data.intro,
+    alternates: { canonical: `/${page}` },
+    robots: privatePage ? { index: false, follow: false } : undefined,
+    openGraph: privatePage ? undefined : { title: `${data.title} | KAOMA`, description: data.intro, url: `/${page}`, type: "website" },
+  };
 }
 
 export default async function InfoPage({
@@ -155,7 +165,7 @@ export default async function InfoPage({
         </div>
       )}
       {data.kind === "contact" && (
-        <><div className="contactForm">
+        <div className="contactForm">
           <article className="pageCard">
             <h2>Email KAOMA</h2>
             <p>For private customer support and general enquiries.</p>
@@ -184,12 +194,11 @@ export default async function InfoPage({
               </a>
             </p>
           </article>
-        </div><LegalPage page="contact" /></>
+        </div>
       )}
       {data.kind === "account" && (
         <CustomerAccount />
       )}
-      {data.kind === "legal" && <LegalPage page={page} />}
       {data.kind === "guides" && (
         <div className="pageGrid">
           <article className="pageCard">
@@ -215,7 +224,7 @@ export default async function InfoPage({
           </article>
         </div>
       )}
-      {data.kind === "tracking" && (
+      {["shipping", "duties", "returns", "tracking"].includes(data.kind) && (
         <div className="pageGrid">
           <article className="pageCard">
             <h2>Clear information before payment</h2>

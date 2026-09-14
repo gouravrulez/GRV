@@ -199,9 +199,7 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
     return () => window.clearTimeout(revealCategory);
   }, [initialCategorySlug]);
   useEffect(() => {
-    // Versioned consent restores the gate once for existing visitors, then
-    // keeps it dismissed after confirmation on that browser/device.
-    setAge(localStorage.getItem("kaoma_age_verified_v2") !== "yes");
+    setAge(localStorage.getItem("kaoma_age_verified") !== "yes");
     setCustomerEmail(localStorage.getItem("kaoma_customer_email") || "");
     setWishlist(JSON.parse(localStorage.getItem("kaoma_wishlist") || "[]"));
     let cancelled = false;
@@ -804,7 +802,7 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
             </DialogDescription>
           </DialogHeader>
           <div className="ageChoices">
-            <button className="ageYes" onClick={() => { localStorage.setItem("kaoma_age_verified_v2", "yes"); setAge(false); }}>
+            <button className="ageYes" onClick={() => { localStorage.setItem("kaoma_age_verified", "yes"); setAge(false); }}>
               <CheckCircle2 />
               <span>
                 <b>Yes, I am 18+</b>
@@ -1229,6 +1227,7 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
           <a href="/duties">Customs & duties</a>
           <a href="/returns">Shipping & returns</a>
           <a href="/order-tracking">Order tracking</a>
+          <a href="/cancellation-refund">Cancellation & refunds</a>
         </div>
         <div>
           <b>Connect with KAOMA</b>
@@ -1248,6 +1247,8 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
             Facebook · kaoma.in
           </a>
           <a href="/account">Customer login</a>
+          <a href="/privacy">Privacy policy</a>
+          <a href="/terms">Terms & conditions</a>
         </div>
       </footer>
       <Sheet open={cartOpen} onOpenChange={setCartOpen}>
