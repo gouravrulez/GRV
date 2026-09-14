@@ -17,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { db, getValidAdminSession, uploadProductImage } from "@/lib/supabase-rest";
+import { CommerceGrowthAdmin } from "@/components/commerce-growth-admin";
 type Cat = { id: string; name: string; slug: string; icon_url?: string | null };
 type Sub = { id: string; category_id: string; name: string; slug: string; icon_url?: string | null };
 type Product = {
@@ -29,6 +30,10 @@ type Product = {
   short_description?: string;
   care_instructions?: string;
   material?: string;
+  seo_title?: string;
+  seo_description?: string;
+  google_product_category?: string;
+  brand?: string;
   price: number | null;
   compare_at_price?: number | null;
   stock_quantity: number;
@@ -359,6 +364,10 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
         short_description: String(f.get("short_description")),
         material: String(f.get("material")),
         care_instructions: String(f.get("care_instructions")),
+        seo_title: String(f.get("seo_title") || name),
+        seo_description: String(f.get("seo_description") || f.get("short_description") || f.get("description")).slice(0, 320),
+        google_product_category: String(f.get("google_product_category") || "Apparel & Accessories"),
+        brand: String(f.get("brand") || "KAOMA"),
         price: Number(f.get("price")) || null,
         compare_at_price: Number(f.get("compare")) || null,
         stock_quantity: Number(f.get("stock")) || 0,
@@ -672,6 +681,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
           </>
         )}
         <section className="adminSections">
+          {section === "global" && <CommerceGrowthAdmin token={token} products={products} />}
           {section === "orders" && (
             <article className="adminCard adminWide">
               <h2>Orders</h2>
@@ -858,6 +868,12 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                       placeholder="Care or usage instructions"
                     />
                   </div>
+                  <div className="adminTwo">
+                    <input name="seo_title" defaultValue={edit?.seo_title || ""} placeholder="SEO page title (optional)" />
+                    <input name="brand" defaultValue={edit?.brand || "KAOMA"} placeholder="Product brand" />
+                  </div>
+                  <textarea name="seo_description" defaultValue={edit?.seo_description || ""} placeholder="SEO description for Google (optional)" />
+                  <input name="google_product_category" defaultValue={edit?.google_product_category || "Apparel & Accessories"} placeholder="Google product category" />
                   <fieldset className="adminChoiceBox">
                     <legend>Show in multiple categories</legend>
                     {cats.map((c) => (
