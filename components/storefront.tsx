@@ -1350,7 +1350,7 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
                 {!!publicCoupons.length&&<div className="publicCoupons">{publicCoupons.map(offer=><button type="button" key={offer.code} onClick={()=>setCouponCode(offer.code)}><b>{offer.code}</b><span>{offer.label||`${offer.discount_value}${offer.discount_type==="percentage"?"%":" INR"} off`}</span></button>)}</div>}
                 <div className="coupon">
                   <input aria-label="Coupon code" value={couponCode} onChange={(event)=>{setCouponCode(event.target.value.toUpperCase());setCouponDiscount(0)}} placeholder="ENTER COUPON CODE" />
-                  <button type="button" disabled={couponBusy||!couponCode.trim()} onClick={()=>void applyCoupon()}>{couponBusy?"Checking…":"Apply coupon"}</button>
+                  <button type="button" disabled={couponBusy||!couponCode.trim()} onClick={()=>void applyCoupon()}>{couponBusy?"…":"Apply"}</button>
                 </div>
                 {couponDiscount>0&&<p className="couponSuccess">✓ Coupon {couponCode} applied: −{formatPrice(couponDiscount)}</p>}
               </section>
@@ -1549,7 +1549,7 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
                   disabled={couponBusy || !couponCode.trim()}
                   onClick={() => void applyCoupon()}
                 >
-                  {couponBusy ? "Checking…" : "Apply coupon"}
+                  {couponBusy ? "…" : "Apply"}
                 </button>
               </div>
               {couponDiscount > 0 && (
