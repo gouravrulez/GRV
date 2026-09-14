@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     const address = body.address && typeof body.address === "object" ? body.address : {};
     const customer = body.customer && typeof body.customer === "object" ? body.customer : {};
     const currency = String(body.currency || "INR").toUpperCase();
+    const couponCode = String(body.couponCode || "").trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(currency)) throw new Error("This checkout currency is not valid.");
     if (!items.length || items.length > 50) throw new Error("Your bag is empty or too large.");
     if (![address.line1, address.city, address.region, address.postal_code, address.country, address.phone].every((value) => String(value || "").trim()))
@@ -64,6 +65,20 @@ export async function POST(request: Request) {
       subtotalInr += Number(product.price) * item.qty;
     }
 
+    let discountInr = 0;
+    let coupon: any = null;
+    if (couponCode) {
+      const couponRows = await serviceDb(`coupons?code=eq.${encodeURIComponent(couponCode)}&active=eq.true&select=*&limit=1`);
+      coupon = couponRows?.[0];
+      const now = Date.now();
+      if (!coupon || (coupon.starts_at && new Date(coupon.starts_at).getTime() > now) || (coupon.ends_at && new Date(coupon.ends_at).getTime() < now) || (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit))
+        throw new Error("This promotional code is invalid or expired.");
+      if (subtotalInr < Number(coupon.minimum_order || 0)) throw new Error(`Minimum order for this code is INR ${coupon.minimum_order}.`);
+      discountInr = coupon.discount_type === "percentage" ? subtotalInr * Number(coupon.discount_value) / 100 : Number(coupon.discount_value);
+      if (coupon.maximum_discount) discountInr = Math.min(discountInr, Number(coupon.maximum_discount));
+      discountInr = Math.min(subtotalInr, Number(discountInr.toFixed(2)));
+    }
+
     const commerce = settingRows?.[0]?.value || {};
     const shippingConfig = commerce.shipping || {};
     const preparationMin = Number(shippingConfig.preparation_min_days ?? 1);
@@ -81,6 +96,8 @@ export async function POST(request: Request) {
       expected_dispatch_to: addBusinessDays(placedAt, preparationMax),
       expected_delivery_from: addBusinessDays(placedAt, preparationMax + deliveryMin),
       expected_delivery_to: addBusinessDays(placedAt, preparationMax + deliveryMax),
+      coupon_code: couponCode || undefined,
+      discount_inr: discountInr || undefined,
     };
     let liveRate = 0;
     if (!commerce.rates?.[currency] && currency !== "INR") {
@@ -100,8 +117,9 @@ export async function POST(request: Request) {
         ? Number(commerce.shipping?.India ?? 0)
         : Number(commerce.shipping?.International ?? 0);
     const subtotal = Number((subtotalInr * rate).toFixed(2));
+    const discount = Number((discountInr * rate).toFixed(2));
     const shipping = Number((shippingInr * rate).toFixed(2));
-    const total = Number((subtotal + shipping).toFixed(2));
+    const total = Number((subtotal - discount + shipping).toFixed(2));
     const amount = Math.round(total * 100);
     if (amount < 100) throw new Error("Order amount is below the payment minimum.");
 
@@ -124,6 +142,10 @@ export async function POST(request: Request) {
       method: "POST",
       body: JSON.stringify(cleanItems.map((item) => { const product = productMap.get(item.id)!; return { order_id: orderId, product_id: item.id, product_name: product.name, quantity: item.qty, unit_price: Number((Number(product.price) * rate).toFixed(2)), selected_size: item.size, selected_colour: item.colour }; })),
     });
+    if (coupon?.id) {
+      await serviceDb(`coupons?id=eq.${coupon.id}`, { method:"PATCH", body:JSON.stringify({usage_count:Number(coupon.usage_count||0)+1}) });
+    }
+    await serviceDb(`abandoned_carts?email=eq.${encodeURIComponent(user.email || "")}`, { method:"PATCH", body:JSON.stringify({recovered:true}) }).catch(() => undefined);
     const { razorpayKeyId } = requireServerConfiguration();
     console.info("[razorpay/order] order created", { orderNumber, razorpayOrderId: paymentOrder.id });
     return NextResponse.json({ key: razorpayKeyId, razorpayOrderId: paymentOrder.id, amount, currency, orderNumber });
