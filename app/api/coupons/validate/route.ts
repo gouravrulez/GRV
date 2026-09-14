@@ -1,5 +1,17 @@
 import { NextResponse } from "next/server";
 import { authenticatedCustomer, serviceDb } from "@/lib/razorpay-server";
+
+export async function GET() {
+  try {
+    const now = new Date().toISOString();
+    const rows = await serviceDb("coupons?active=eq.true&public_visible=eq.true&select=code,label,discount_type,discount_value,minimum_order,maximum_discount,ends_at&order=created_at.desc");
+    const coupons = (rows || []).filter((coupon:any) => !coupon.ends_at || coupon.ends_at >= now);
+    return NextResponse.json({ coupons });
+  } catch {
+    return NextResponse.json({ coupons: [] });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     await authenticatedCustomer(request);
