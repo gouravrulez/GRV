@@ -402,12 +402,24 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     await db(`${table}?id=eq.${id}`, token, { method: "DELETE" });
     await load(token);
   }
-  async function orderStatus(id: string, status: string) {
-    await db(`orders?id=eq.${id}`, token, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
+  async function updateOrderOnServer(body: Record<string, unknown>) {
+    const authToken = await getValidAdminSession();
+    setToken(authToken);
+    const response = await fetch("/api/admin/order-status", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-    await load(token);
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Unable to update order.");
+    setMsg(result.emailWarning
+      ? `Order saved, but email was not sent: ${result.emailWarning}`
+      : result.emailSent ? "Order saved and customer email sent." : "Order saved.");
+    await load(authToken);
+  }
+  async function orderStatus(id: string, status: string) {
+    try { await updateOrderOnServer({ orderId: id, status }); }
+    catch (error) { setMsg(error instanceof Error ? error.message : "Unable to update order."); }
   }
   async function updateOrderShipping(event: FormEvent<HTMLFormElement>, order: Order) {
     event.preventDefault();
@@ -420,12 +432,15 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
       expected_delivery_from: String(form.get("expected_delivery_from") || ""),
       expected_delivery_to: String(form.get("expected_delivery_to") || ""),
     };
-    await db(`orders?id=eq.${order.id}`, token, {
-      method: "PATCH",
-      body: JSON.stringify({ tracking_number: String(form.get("tracking_number") || ""), shipping_address: shippingAddress }),
-    });
-    setMsg("Shipping and expected delivery details saved.");
-    await load(token);
+    try {
+      await updateOrderOnServer({
+        orderId: order.id,
+        tracking_number: String(form.get("tracking_number") || ""),
+        shipping_address: shippingAddress,
+      });
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : "Unable to save shipping details.");
+    }
   }
   async function reviewStatus(id: string, status: string) {
     await db(`reviews?id=eq.${id}`, token, {
