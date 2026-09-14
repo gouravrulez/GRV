@@ -4,6 +4,17 @@ import { authenticatedCustomer, razorpay, requireServerConfiguration, serviceDb 
 type CheckoutItem = { id?: string; qty?: number; size?: string; colour?: string };
 type Product = { id: string; name: string; price: number; stock_quantity: number; status: string | null };
 
+function addBusinessDays(date: Date, days: number) {
+  const result = new Date(date);
+  let remaining = Math.max(0, Math.round(days));
+  while (remaining > 0) {
+    result.setUTCDate(result.getUTCDate() + 1);
+    const day = result.getUTCDay();
+    if (day !== 0 && day !== 6) remaining -= 1;
+  }
+  return result.toISOString().slice(0, 10);
+}
+
 export async function POST(request: Request) {
   try {
     console.info("[razorpay/order] request received");
@@ -54,6 +65,23 @@ export async function POST(request: Request) {
     }
 
     const commerce = settingRows?.[0]?.value || {};
+    const shippingConfig = commerce.shipping || {};
+    const preparationMin = Number(shippingConfig.preparation_min_days ?? 1);
+    const preparationMax = Number(shippingConfig.preparation_max_days ?? 3);
+    const domestic = String(address.country) === "India";
+    const deliveryMin = Number(domestic ? shippingConfig.india_delivery_min_days ?? 2 : shippingConfig.international_delivery_min_days ?? 7);
+    const deliveryMax = Number(domestic ? shippingConfig.india_delivery_max_days ?? 7 : shippingConfig.international_delivery_max_days ?? 21);
+    const placedAt = new Date();
+    const shippingAddress = {
+      ...address,
+      carrier: "India Post",
+      preparation_min_days: preparationMin,
+      preparation_max_days: preparationMax,
+      expected_dispatch_from: addBusinessDays(placedAt, preparationMin),
+      expected_dispatch_to: addBusinessDays(placedAt, preparationMax),
+      expected_delivery_from: addBusinessDays(placedAt, preparationMax + deliveryMin),
+      expected_delivery_to: addBusinessDays(placedAt, preparationMax + deliveryMax),
+    };
     let liveRate = 0;
     if (!commerce.rates?.[currency] && currency !== "INR") {
       try {
@@ -88,7 +116,7 @@ export async function POST(request: Request) {
     console.info("[razorpay/order] customer details saved", { userId: user.id, currency, itemCount: cleanItems.length });
     const created = await serviceDb("orders", {
       method: "POST", headers: { Prefer: "return=representation" },
-      body: JSON.stringify({ user_id: user.id, order_number: orderNumber, customer_email: user.email || "", currency, subtotal, shipping, tax: 0, total, status: "pending", payment_status: "created", shipping_address: address, razorpay_order_id: paymentOrder.id }),
+      body: JSON.stringify({ user_id: user.id, order_number: orderNumber, customer_email: user.email || "", currency, subtotal, shipping, tax: 0, total, status: "pending", payment_status: "created", shipping_address: shippingAddress, razorpay_order_id: paymentOrder.id }),
     });
     const orderId = created?.[0]?.id;
     if (!orderId) throw new Error("Order could not be saved.");
