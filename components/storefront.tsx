@@ -170,7 +170,8 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
     [phoneCountryCode, setPhoneCountryCode] = useState("IN"),
     [couponCode, setCouponCode] = useState(""),
     [couponDiscount, setCouponDiscount] = useState(0),
-    [couponBusy, setCouponBusy] = useState(false);
+    [couponBusy, setCouponBusy] = useState(false),
+    [publicCoupons, setPublicCoupons] = useState<{code:string;label?:string;discount_type:string;discount_value:number;minimum_order:number}[]>([]);
   useEffect(() => {
     // Warm the Razorpay checkout bundle shortly after page load so the payment
     // window opens quickly when the customer is ready.
@@ -189,6 +190,12 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
         }).sort((a,b) => a.currency === "INR" ? -1 : b.currency === "INR" ? 1 : a.currency.localeCompare(b.currency));
         if (next.length) setAvailableMarkets(next);
       }).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    fetch("/api/coupons/validate", { cache:"no-store" })
+      .then(response => response.ok ? response.json() : { coupons:[] })
+      .then(data => setPublicCoupons(Array.isArray(data.coupons) ? data.coupons : []))
+      .catch(() => setPublicCoupons([]));
   }, []);
   useEffect(() => {
     if (!initialCategorySlug || !catalogCategories.length) return;
@@ -1338,11 +1345,15 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
                   </div>
                 ))}
               </div>
-              <div className="coupon">
-                <input value={couponCode} onChange={(event)=>{setCouponCode(event.target.value.toUpperCase());setCouponDiscount(0)}} placeholder="Promotional code" />
-                <button type="button" disabled={couponBusy} onClick={()=>void applyCoupon()}>{couponBusy?"Checking…":"Apply"}</button>
-              </div>
-              {couponDiscount>0&&<p className="couponSuccess">Coupon {couponCode}: −{formatPrice(couponDiscount)}</p>}
+              <section className="cartCouponBox">
+                <div className="cartCouponTitle"><b>Apply a coupon</b><span>Enter a public offer or a secret code</span></div>
+                {!!publicCoupons.length&&<div className="publicCoupons">{publicCoupons.map(offer=><button type="button" key={offer.code} onClick={()=>setCouponCode(offer.code)}><b>{offer.code}</b><span>{offer.label||`${offer.discount_value}${offer.discount_type==="percentage"?"%":" INR"} off`}</span></button>)}</div>}
+                <div className="coupon">
+                  <input aria-label="Coupon code" value={couponCode} onChange={(event)=>{setCouponCode(event.target.value.toUpperCase());setCouponDiscount(0)}} placeholder="ENTER COUPON CODE" />
+                  <button type="button" disabled={couponBusy||!couponCode.trim()} onClick={()=>void applyCoupon()}>{couponBusy?"Checking…":"Apply coupon"}</button>
+                </div>
+                {couponDiscount>0&&<p className="couponSuccess">✓ Coupon {couponCode} applied: −{formatPrice(couponDiscount)}</p>}
+              </section>
               <div className="total">
                 <span>Subtotal</span>
                 <b>{formatPrice(subtotal)}</b>
