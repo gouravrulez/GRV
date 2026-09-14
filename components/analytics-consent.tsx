@@ -51,7 +51,7 @@ export function AnalyticsConsent() {
           </div>
           <div className={styles.actions}>
             <button className={styles.secondary} onClick={() => choose("essential")}>Essential only</button>
-            <button className={styles.primary} onClick={() => choose("accepted")}>Accept analytics</button>
+            <button className={styles.primary} onClick={() => choose("accepted")}>Accept all cookies</button>
           </div>
         </section>
       ) : consent ? (
