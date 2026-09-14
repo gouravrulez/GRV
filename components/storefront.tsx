@@ -1130,7 +1130,6 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
                       </button>
                     )}
                     <i />
-                    <strong>{p.category}</strong>
                     {p.image_urls && p.image_urls.length > 1 && (
                       <button
                         className="galleryCount"
