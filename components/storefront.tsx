@@ -3,6 +3,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { clearCustomerSession, db, getValidCustomerSession, supabaseReady } from "@/lib/supabase-rest";
 import { worldCountries } from "@/lib/world-countries";
+import { trackCommerceEvent } from "@/lib/analytics";
 import {
   Heart,
   Search,
@@ -371,6 +372,11 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
       toast.error("This product is currently out of stock");
       return;
     }
+    trackCommerceEvent("add_to_cart", {
+      currency: market.currency,
+      value: Number((p.price * rate).toFixed(2)),
+      items: [{ item_id: p.id, item_name: p.name, item_category: p.category, price: Number((p.price * rate).toFixed(2)), quantity: 1, item_variant: [size, colour].filter(Boolean).join(" / ") }],
+    });
     if (buy) {
       setCart({ [p.id]: { qty: 1, size, colour } });
       toast.success(p.name + " is ready for checkout");
@@ -391,6 +397,7 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
     setCartOpen(true);
   };
   const openProduct = (p: Product) => {
+    trackCommerceEvent("view_item", { currency: market.currency, value: Number((p.price * rate).toFixed(2)), items: [{ item_id: p.id, item_name: p.name, item_category: p.category, price: Number((p.price * rate).toFixed(2)), quantity: 1 }] });
     setSelectedProduct(p);
     setSelectedSize(p.sizes?.[0] || "");
     setSelectedColour(p.colours?.[0] || "");
@@ -410,6 +417,7 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
             const size = params.get("size") || found.sizes?.[0] || "Standard";
             const colour = params.get("colour") || found.colours?.[0] || "As shown";
             setCart({ [found.id]: { qty: 1, size, colour } });
+            trackCommerceEvent("add_to_cart", { currency: market.currency, value: Number((found.price * rate).toFixed(2)), items: [{ item_id: found.id, item_name: found.name, item_category: found.category, price: Number((found.price * rate).toFixed(2)), quantity: 1, item_variant: [size, colour].filter(Boolean).join(" / ") }] });
             history.replaceState(null, "", "/");
             if (action === "cart") {
               setCartOpen(true);
@@ -437,6 +445,10 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
       : [...wishlist, id];
     setWishlist(next);
     localStorage.setItem("kaoma_wishlist", JSON.stringify(next));
+    if (next.includes(id)) {
+      const product = products.find((item) => item.id === id);
+      if (product) trackCommerceEvent("add_to_wishlist", { currency: market.currency, value: Number((product.price * rate).toFixed(2)), items: [{ item_id: product.id, item_name: product.name, item_category: product.category, price: Number((product.price * rate).toFixed(2)), quantity: 1 }] });
+    }
     toast.success(
       next.includes(id) ? "Saved to wishlist" : "Removed from wishlist",
     );
@@ -483,6 +495,11 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
       toast.error("Your bag is empty");
       return;
     }
+    trackCommerceEvent("begin_checkout", {
+      currency: market.currency,
+      value: Number(((subtotal + shipping) * rate).toFixed(2)),
+      items: items.map((item) => ({ item_id: item.id, item_name: item.name, item_category: item.category, price: Number((item.price * rate).toFixed(2)), quantity: item.qty, item_variant: [item.size, item.colour].filter(Boolean).join(" / ") })),
+    });
     // Go straight to KAOMA's same-origin payment API. The server validates the
     // customer token; no third-party browser request may block checkout first.
     setPlacingOrder(true);
@@ -538,6 +555,13 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
             const verification = await verificationResponse.json();
             if (!verificationResponse.ok || !verification.verified) throw new Error(verification.error || "Payment verification failed.");
             if (verification.captured) {
+              trackCommerceEvent("purchase", {
+                transaction_id: verification.orderNumber,
+                currency: paymentOrder.currency,
+                value: Number(paymentOrder.amount) / 100,
+                shipping: Number((shipping * rate).toFixed(2)),
+                items: items.map((item) => ({ item_id: item.id, item_name: item.name, item_category: item.category, price: Number((item.price * rate).toFixed(2)), quantity: item.qty, item_variant: [item.size, item.colour].filter(Boolean).join(" / ") })),
+              });
               setCart({}); setCheckout(false);
               toast.success(verification.emailSent
                 ? `Payment received. Order ${verification.orderNumber} is confirmed and emailed.`
