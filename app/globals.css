@@ -197,3 +197,6 @@ a{color:inherit;text-decoration:none}.logo{display:inline-block}nav a{height:100
 .publicCoupons{margin-bottom:5px!important}
 .publicCoupons>button{min-width:88px!important;padding:4px 5px!important}
 @media(max-width:520px){.cartCouponBox .coupon{grid-template-columns:minmax(0,1fr) 48px!important}.cartCouponBox .coupon button{min-width:48px!important;width:48px!important;height:28px!important}.cartCouponBox .coupon input{height:28px!important}}
+
+/* KAOMA product experience */
+.stockNotice{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin:10px 0}.stockNotice input{min-width:0;border:1px solid #d7c4cb;padding:10px;background:#fff}.stockNotice button{border:0;background:#54233a;color:#fff;padding:0 14px;font-weight:800}.productDeliveryEstimate{display:flex;align-items:flex-start;gap:10px;margin:16px 0;padding:12px;border:1px solid #eadcc8;border-radius:9px;background:#fff9f5}.productDeliveryEstimate>svg{width:21px;color:#c34368}.productDeliveryEstimate>div{display:grid;gap:3px}.productDeliveryEstimate span{font-size:11px;color:#806d76}.sizeGuide p{white-space:pre-line;margin:5px 0;padding:7px 9px;background:#fff8f4;border-radius:5px}.recentlyViewed{background:#fffaf6}@media(max-width:520px){.stockNotice{grid-template-columns:1fr}.stockNotice button{height:40px}.productDeliveryEstimate{padding:10px}}
