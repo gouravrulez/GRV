@@ -373,10 +373,10 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
         price: Number(f.get("price")) || null,
         compare_at_price: Number(f.get("compare")) || null,
         stock_quantity: Number(f.get("stock")) || 0,
-        sizes: String(f.get("sizes"))
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean),
+        sizes: Array.from(new Set([
+          ...String(f.get("sizes")).split(",").map((x) => x.trim()).filter(Boolean),
+          ...(f.get("free_size") === "on" ? ["Free Size"] : []),
+        ])),
         colours,
         colour_image_map: colourImageMap,
         related_product_ids: f.getAll("related_products").map(String),
@@ -389,14 +389,24 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
         new_arrival: f.get("new_arrival") === "on",
         image_urls: images,
       };
+      const editedProductId = edit?.id || "";
       await db(edit ? `products?id=eq.${edit.id}` : "products", token, {
         method: edit ? "PATCH" : "POST",
         body: JSON.stringify(body),
       });
+      if (editedProductId && body.stock_quantity > 0) {
+        const response = await fetch("/api/admin/stock-notify", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ productId: editedProductId }),
+        });
+        const notification = await response.json().catch(() => ({}));
+        if (response.ok && notification.sent > 0) setMsg(`Product saved and ${notification.sent} back-in-stock email(s) sent.`);
+      }
       setEdit(null);
       setProductImages([]);
       formElement.reset();
-      setMsg("Product saved successfully.");
+      setMsg((current) => current.includes("back-in-stock") ? current : "Product saved successfully.");
       await load(token);
     } catch (error) {
       setMsg(
@@ -940,9 +950,13 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                   </div>
                   <input
                     name="sizes"
-                    defaultValue={edit?.sizes?.join(", ") || ""}
+                    defaultValue={edit?.sizes?.filter((size) => size !== "Free Size").join(", ") || ""}
                     placeholder="Optional clothing sizes: XS, S, M, L, XL"
                   />
+                  <label className="adminInlineCheck">
+                    <input name="free_size" type="checkbox" defaultChecked={edit?.sizes?.includes("Free Size")} />
+                    This product is available in Free Size
+                  </label>
                   <input
                     name="colours"
                     defaultValue={edit?.colours?.join(", ") || ""}
