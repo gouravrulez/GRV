@@ -34,6 +34,7 @@ type Product = {
   seo_description?: string;
   google_product_category?: string;
   brand?: string;
+  size_guide?: string;
   price: number | null;
   compare_at_price?: number | null;
   stock_quantity: number;
@@ -368,6 +369,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
         seo_description: String(f.get("seo_description") || f.get("short_description") || f.get("description")).slice(0, 320),
         google_product_category: String(f.get("google_product_category") || "Apparel & Accessories"),
         brand: String(f.get("brand") || "KAOMA"),
+        size_guide: String(f.get("size_guide") || ""),
         price: Number(f.get("price")) || null,
         compare_at_price: Number(f.get("compare")) || null,
         stock_quantity: Number(f.get("stock")) || 0,
@@ -872,6 +874,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                     <input name="seo_title" defaultValue={edit?.seo_title || ""} placeholder="SEO page title (optional)" />
                     <input name="brand" defaultValue={edit?.brand || "KAOMA"} placeholder="Product brand" />
                   </div>
+                  <textarea name="size_guide" defaultValue={edit?.size_guide || ""} placeholder={"Size guide, one line per size. Example:\nS — Bust 32–34 in, Waist 25–27 in\nM — Bust 34–36 in, Waist 27–29 in"} />
                   <textarea name="seo_description" defaultValue={edit?.seo_description || ""} placeholder="SEO description for Google (optional)" />
                   <input name="google_product_category" defaultValue={edit?.google_product_category || "Apparel & Accessories"} placeholder="Google product category" />
                   <fieldset className="adminChoiceBox">
