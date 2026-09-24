@@ -186,6 +186,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
   const [uploading, setUploading] = useState(false);
   const [imageUploadStatus, setImageUploadStatus] = useState("");
   const [categoryImageStatus, setCategoryImageStatus] = useState("");
+  const [visibilityBusyId, setVisibilityBusyId] = useState("");
   async function load(authToken: string) {
     try {
       if (!(await db("admins?select=user_id&limit=1", authToken)).length)
@@ -422,6 +423,46 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     if (!confirm("Permanently delete this item?")) return;
     await db(`${table}?id=eq.${id}`, token, { method: "DELETE" });
     await load(token);
+  }
+  async function setProductVisibility(product: Product) {
+    const isLive = ["active", "published"].includes(product.status);
+    if (!isLive && !product.image_urls?.some(Boolean)) {
+      setEdit(product);
+      setMsg("Add a main image before making this product live.");
+      return;
+    }
+    setVisibilityBusyId(product.id);
+    setMsg("");
+    try {
+      const authToken = await getValidAdminSession();
+      setToken(authToken);
+      const status = isLive ? "draft" : "active";
+      await db(`products?id=eq.${product.id}`, authToken, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setProducts((current) =>
+        current.map((item) =>
+          item.id === product.id ? { ...item, status } : item,
+        ),
+      );
+      setEdit((current) =>
+        current?.id === product.id ? { ...current, status } : current,
+      );
+      setMsg(
+        isLive
+          ? `${product.name} is hidden from the website.`
+          : `${product.name} is now live on the website.`,
+      );
+    } catch (error) {
+      setMsg(
+        error instanceof Error
+          ? error.message
+          : "Unable to change product visibility.",
+      );
+    } finally {
+      setVisibilityBusyId("");
+    }
   }
   async function updateOrderOnServer(body: Record<string, unknown>) {
     const authToken = await getValidAdminSession();
@@ -943,9 +984,9 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                       name="status"
                       defaultValue={edit?.status || "draft"}
                     >
-                      <option value="draft">Draft</option>
-                      <option value="active">Published</option>
-                      <option value="sold_out">Sold out</option>
+                      <option value="draft">Hidden from website (draft)</option>
+                      <option value="active">Visible on website (live)</option>
+                      <option value="sold_out">Hidden because sold out</option>
                     </select>
                   </div>
                   <input
@@ -1150,19 +1191,46 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                         <span>
                           <b>{p.name}</b>
                           <small>
-                            {p.status} · Stock {p.stock_quantity} ·{" "}
+                            {["active", "published"].includes(p.status)
+                              ? "LIVE ON WEBSITE"
+                              : "HIDDEN FROM WEBSITE"}{" "}
+                            · Stock {p.stock_quantity} ·{" "}
                             {p.price ? `₹${p.price}` : "No price"} ·{" "}
                             {p.image_urls?.length || 0} images ·{" "}
-                            {p.category_ids?.length || Boolean(p.category_id)
-                              ? 1
-                              : 0}
-                            + categories
+                            {p.category_ids?.length ||
+                              (p.category_id ? 1 : 0)}{" "}
+                            categories
                           </small>
-                          <small>Share: kaoma.in/?product={slug(p.name)}</small>
+                          {["active", "published"].includes(p.status) && (
+                            <small>
+                              Share: kaoma.in/product/{slug(p.name)}
+                            </small>
+                          )}
                         </span>
                         <span className="rowActions">
-                          <button onClick={() => setEdit(p)}>Edit</button>
-                          <button onClick={() => void remove("products", p.id)}>
+                          <button
+                            type="button"
+                            onClick={() => void setProductVisibility(p)}
+                            disabled={visibilityBusyId === p.id}
+                            aria-label={
+                              ["active", "published"].includes(p.status)
+                                ? `Hide ${p.name} from website`
+                                : `Make ${p.name} live on website`
+                            }
+                          >
+                            {visibilityBusyId === p.id
+                              ? "Saving…"
+                              : ["active", "published"].includes(p.status)
+                                ? "Hide"
+                                : "Make live"}
+                          </button>
+                          <button type="button" onClick={() => setEdit(p)}>
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void remove("products", p.id)}
+                          >
                             Delete
                           </button>
                         </span>
