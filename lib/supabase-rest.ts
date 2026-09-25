@@ -127,6 +127,7 @@ export function clearCustomerSession() {
   localStorage.removeItem("kaoma_customer_refresh_token");
   localStorage.removeItem("kaoma_customer_id");
   localStorage.removeItem("kaoma_customer_email");
+  if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("kaoma_customer_orders_cache");
 }
 
 export function saveAdminSession(session: CustomerSession) {
