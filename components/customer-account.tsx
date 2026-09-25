@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Camera, ChevronRight, CircleUserRound, FileDown, Heart, LayoutDashboard, LogOut, MapPin, PackageCheck, PackageOpen, Settings, ShoppingBag, Truck } from "lucide-react";
-import { clearCustomerSession, db, getCurrentUser, getCustomerAvatarUrl, getValidCustomerSession, saveCustomerSession, sendEmailOtp, supabaseReady, uploadCustomerAvatar, verifyEmailOtp } from "@/lib/supabase-rest";
+import { clearCustomerSession, customerSessionRefreshDelay, db, getCurrentUser, getCustomerAvatarUrl, getValidCustomerSession, isCustomerSessionExpiredError, saveCustomerSession, sendEmailOtp, supabaseReady, uploadCustomerAvatar, verifyEmailOtp } from "@/lib/supabase-rest";
 import { callingCodes, countries, splitInternationalPhone } from "@/lib/countries";
 import { carrierTrackingUrl } from "@/lib/carriers";
 import { CustomerAddressBook, ReturnRequestPanel } from "@/components/customer-growth-tools";
@@ -25,6 +25,11 @@ export function CustomerAccount() {
   const [section,setSection]=useState<AccountSection>("overview"), [avatarUrl,setAvatarUrl]=useState(""), [wishlistCount,setWishlistCount]=useState(0);
   const [dialCode,setDialCode]=useState("+91"), [phoneNumber,setPhoneNumber]=useState("");
 
+  const expireCustomerSession=useCallback((notice="Your session expired. Please request a new OTP.")=>{
+    clearCustomerSession();
+    setToken(""); setUserId(""); setOrders([]); setProfile(emptyProfile); setAvatarUrl(""); setSection("overview"); setCodeSent(false); setLoading(false); setMessage(notice);
+  },[]);
+
   const loadAccount=useCallback(async(accessToken:string,id:string,accountEmail="")=>{
     try {
       const [profileRows,orderRows]=await Promise.all([
@@ -35,9 +40,12 @@ export function CustomerAccount() {
       const parsedPhone=splitInternationalPhone(nextProfile.phone||"");
       setProfile(nextProfile); setDialCode(parsedPhone.dial); setPhoneNumber(parsedPhone.number); setOrders(orderRows||[]);
       if(nextProfile.avatar_path) void getCustomerAvatarUrl(nextProfile.avatar_path,accessToken).then(setAvatarUrl).catch(()=>{});
-    } catch(error) { setMessage(error instanceof Error?error.message:"Unable to load your account."); }
+    } catch(error) {
+      if(isCustomerSessionExpiredError(error)){expireCustomerSession();return;}
+      setMessage(error instanceof Error?error.message:"Unable to load your account.");
+    }
     finally { setLoading(false); }
-  },[]);
+  },[expireCustomerSession]);
 
   useEffect(()=>{
     setWishlistCount(JSON.parse(localStorage.getItem("kaoma_wishlist")||"[]").length);
@@ -51,16 +59,42 @@ export function CustomerAccount() {
       setToken(validToken);setUserId(user.id);setEmail(accountEmail);
       if(hash.get("access_token")) history.replaceState(null,"","/account");
       await loadAccount(validToken,user.id,accountEmail);
-    }catch{clearCustomerSession();setToken("");setUserId("");setMessage("Your session expired. Please request a new OTP.");setLoading(false);}})();
-  },[loadAccount]);
+    }catch{expireCustomerSession();}})();
+  },[loadAccount,expireCustomerSession]);
+
+  useEffect(()=>{
+    if(!token)return;
+    let active=true, timer:number|undefined;
+    const schedule=(currentToken:string)=>{
+      if(timer)window.clearTimeout(timer);
+      timer=window.setTimeout(()=>void refresh(),customerSessionRefreshDelay(currentToken));
+    };
+    const refresh=async()=>{
+      try{
+        const nextToken=await getValidCustomerSession();
+        if(!active)return;
+        if(nextToken!==token)setToken(nextToken);
+        schedule(nextToken);
+      }catch(error){
+        if(active&&isCustomerSessionExpiredError(error))expireCustomerSession();
+      }
+    };
+    const resume=()=>{if(document.visibilityState==="visible")void refresh();};
+    const expired=()=>expireCustomerSession();
+    schedule(token);
+    window.addEventListener("focus",resume);
+    window.addEventListener("kaoma:customer-session-expired",expired);
+    document.addEventListener("visibilitychange",resume);
+    return()=>{active=false;if(timer)window.clearTimeout(timer);window.removeEventListener("focus",resume);window.removeEventListener("kaoma:customer-session-expired",expired);document.removeEventListener("visibilitychange",resume);};
+  },[token,expireCustomerSession]);
 
   const activeOrders=useMemo(()=>orders.filter(order=>!["delivered","cancelled"].includes(order.status.toLowerCase())),[orders]);
   const updateField=(field:keyof Profile,value:string)=>setProfile(current=>({...current,[field]:value}));
 
   async function requestCode(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{await sendEmailOtp(email);setCodeSent(true);setMessage("Enter the OTP sent to your email.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to send code.");}finally{setBusy(false);}}
   async function confirmCode(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{const form=new FormData(event.currentTarget),code=String(form.get("code")).trim();if(!/^\d{6,8}$/.test(code))throw new Error("Enter the complete OTP from your email.");const session=await verifyEmailOtp(email,code);saveCustomerSession(session,email);sessionStorage.setItem("kaoma_login_success","1");window.location.assign("/");}catch(error){setMessage(error instanceof Error?error.message:"Unable to verify code.");}finally{setBusy(false);}}
-  async function saveProfile(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{const cleanNumber=phoneNumber.replace(/[^0-9]/g,"");const body={...profile,phone:cleanNumber?`${dialCode}${cleanNumber}`:"",user_id:userId,email:localStorage.getItem("kaoma_customer_email")||profile.email||email};await db("profiles?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});setProfile(current=>({...current,phone:body.phone}));setMessage("Your profile and international delivery address have been saved.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to save details.");}finally{setBusy(false);}}
-  async function changeAvatar(file?:File){if(!file)return;setBusy(true);setMessage("");try{const path=await uploadCustomerAvatar(file,token,userId);await db("profiles?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify({user_id:userId,email:profile.email||email,avatar_path:path})});setProfile(current=>({...current,avatar_path:path}));setAvatarUrl(await getCustomerAvatarUrl(path,token));setMessage("Your profile photo has been updated.");}catch(error){setMessage(error instanceof Error?error.message:"Unable to upload photo.");}finally{setBusy(false);}}
+  async function saveProfile(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");try{const cleanNumber=phoneNumber.replace(/[^0-9]/g,"");const body={...profile,phone:cleanNumber?`${dialCode}${cleanNumber}`:"",user_id:userId,email:localStorage.getItem("kaoma_customer_email")||profile.email||email};await db("profiles?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});setProfile(current=>({...current,phone:body.phone}));setMessage("Your profile and international delivery address have been saved.");}catch(error){if(isCustomerSessionExpiredError(error)){expireCustomerSession();return;}setMessage(error instanceof Error?error.message:"Unable to save details.");}finally{setBusy(false);}}
+  async function changeAvatar(file?:File){if(!file)return;setBusy(true);setMessage("");try{const path=await uploadCustomerAvatar(file,token,userId);await db("profiles?on_conflict=user_id",token,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify({user_id:userId,email:profile.email||email,avatar_path:path})});setProfile(current=>({...current,avatar_path:path}));setAvatarUrl(await getCustomerAvatarUrl(path,token));setMessage("Your profile photo has been updated.");}catch(error){if(isCustomerSessionExpiredError(error)){expireCustomerSession();return;}setMessage(error instanceof Error?error.message:"Unable to upload photo.");}finally{setBusy(false);}}
   function logout(){clearCustomerSession();location.reload();}
 
   if(loading)return null;
