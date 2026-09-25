@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  Bell,
   Boxes,
   ClipboardList,
   FolderTree,
@@ -60,6 +61,7 @@ type Order = {
   currency: string;
   status: string;
   payment_status: string;
+  created_at: string;
   tracking_number?: string | null;
   shipping_address?: {
     carrier?: string;
@@ -102,6 +104,7 @@ type Review = {
   products?: { name: string } | null;
 };
 type SiteSetting = { key: string; value: Record<string, any> };
+type AdminNotice = { id: string; title: string; detail: string; href: string; createdAt: string; kind: "order" | "review" | "customer" | "stock" };
 const slug = (value: string) =>
   value
     .toLowerCase()
@@ -179,6 +182,8 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [settings, setSettings] = useState<SiteSetting[]>([]);
+  const [noticesOpen, setNoticesOpen] = useState(false);
+  const [readNoticeIds, setReadNoticeIds] = useState<string[]>([]);
   const [edit, setEdit] = useState<Product | null>(null);
   const [editCat, setEditCat] = useState<Cat | null>(null);
   const [editSub, setEditSub] = useState<Sub | null>(null);
@@ -199,7 +204,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
         ),
         db("products?select=*&order=created_at.desc", authToken),
         db(
-          "orders?select=id,order_number,customer_email,total,currency,status,payment_status,tracking_number,shipping_address&order=created_at.desc",
+          "orders?select=id,order_number,customer_email,total,currency,status,payment_status,tracking_number,shipping_address,created_at&order=created_at.desc",
           authToken,
         ),
         db(
@@ -241,6 +246,57 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     }
     void getValidAdminSession().then((validToken) => { setToken(validToken); return load(validToken); }).catch(() => location.replace("/admin-login"));
   }, []);
+  useEffect(() => {
+    try { setReadNoticeIds(JSON.parse(localStorage.getItem("kaoma_admin_read_notices") || "[]")); }
+    catch { setReadNoticeIds([]); }
+  }, []);
+  useEffect(() => {
+    if (!ready || !token) return;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const validToken = await getValidAdminSession();
+        setToken(validToken);
+        const [newOrders, newReviews, newCustomers] = await Promise.all([
+          db("orders?select=id,order_number,customer_email,total,currency,status,payment_status,tracking_number,shipping_address,created_at&order=created_at.desc", validToken),
+          db("reviews?select=id,reviewer_name,rating,title,body,status,created_at,products(name)&order=created_at.desc", validToken),
+          db("profiles?select=user_id,full_name,email,phone,country,address_line1,city,region,postal_code,created_at&order=created_at.desc", validToken),
+        ]);
+        setOrders(newOrders); setReviews(newReviews); setCustomers(newCustomers);
+      } catch { /* Keep the last loaded notices; manual page refresh can retry. */ }
+    };
+    const interval = window.setInterval(() => void refresh(), 45_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", refresh); };
+  }, [ready, token]);
+  const notices = useMemo<AdminNotice[]>(() => {
+    const recent = Date.now() - 30 * 24 * 60 * 60_000;
+    const orderNotices = orders
+      .filter(order => ["captured", "paid"].includes(order.payment_status.toLowerCase()) && Date.parse(order.created_at) >= recent)
+      .map(order => ({id:`order:${order.id}`,title:`New paid order #${order.order_number}`,detail:`${order.currency} ${order.total} · ${order.customer_email}`,href:"/admin/orders",createdAt:order.created_at,kind:"order" as const}));
+    const reviewNotices = reviews
+      .filter(review => review.status.toLowerCase() === "pending")
+      .map(review => ({id:`review:${review.id}`,title:"Review awaiting approval",detail:`${review.reviewer_name} · ${review.products?.name || "Product review"}`,href:"/admin/reviews",createdAt:review.created_at,kind:"review" as const}));
+    const customerNotices = customers
+      .filter(customer => Date.parse(customer.created_at) >= recent)
+      .map(customer => ({id:`customer:${customer.user_id}`,title:"New customer registration",detail:customer.full_name || customer.email || "Customer",href:"/admin/customers",createdAt:customer.created_at,kind:"customer" as const}));
+    const stockNotices = products
+      .filter(product => product.status === "active" && product.stock_quantity <= 3)
+      .map(product => ({id:`stock:${product.id}`,title:product.stock_quantity <= 0 ? "Product out of stock" : "Product running low",detail:`${product.name} · ${product.stock_quantity} left`,href:"/admin/products",createdAt:"",kind:"stock" as const}));
+    return [...orderNotices,...reviewNotices,...customerNotices,...stockNotices].sort((a,b)=>Date.parse(b.createdAt || "1970-01-01")-Date.parse(a.createdAt || "1970-01-01")).slice(0,30);
+  }, [orders, reviews, customers, products]);
+  const unreadNotices = notices.filter(notice => !readNoticeIds.includes(notice.id)).length;
+  function markNoticeRead(id: string) {
+    if (readNoticeIds.includes(id)) return;
+    const ids = [...readNoticeIds, id];
+    setReadNoticeIds(ids);
+    try { localStorage.setItem("kaoma_admin_read_notices", JSON.stringify(ids.slice(-300))); } catch {}
+  }
+  function markNoticesRead() {
+    const ids = Array.from(new Set([...readNoticeIds, ...notices.map(notice => notice.id)]));
+    setReadNoticeIds(ids);
+    try { localStorage.setItem("kaoma_admin_read_notices", JSON.stringify(ids.slice(-300))); } catch {}
+  }
   useEffect(() => setProductImages(edit?.image_urls || []), [edit]);
 
   async function uploadMainSelection(input: HTMLInputElement) {
@@ -663,6 +719,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
             >
               <Icon />
               <span>{label}</span>
+              {id === "overview" && unreadNotices > 0 && <b>{unreadNotices}</b>}
               {id === "customers" && customers.length > 0 && (
                 <b>{customers.length}</b>
               )}
@@ -684,10 +741,22 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
             <b>KAOMA</b>
             <span>Luxury commerce administration</span>
           </div>
-          <a href="/" target="_blank">
-            <Store />
-            View store
-          </a>
+          <div className="adminHeaderActions">
+            <div className="adminNotificationWrap">
+              <button type="button" className="adminBell" aria-label={`Notifications, ${unreadNotices} unread`} aria-expanded={noticesOpen} onClick={() => setNoticesOpen(open => !open)}>
+                <Bell />{unreadNotices > 0 && <b>{unreadNotices}</b>}
+              </button>
+              {noticesOpen && <div className="adminNotificationPanel" role="region" aria-label="Admin notifications">
+                <div className="adminNotificationHead"><strong>Notifications</strong><button type="button" onClick={markNoticesRead}>Mark all read</button></div>
+                <div className="adminNotificationList">
+                  {notices.length ? notices.slice(0,12).map(notice => <Link key={notice.id} href={notice.href} className={readNoticeIds.includes(notice.id) ? "" : "unread"} onClick={() => { markNoticeRead(notice.id); setNoticesOpen(false); }}>
+                    <span className={`noticeDot ${notice.kind}`} /><span><strong>{notice.title}</strong><small>{notice.detail}</small></span>
+                  </Link>) : <p>All caught up. New orders and updates will appear here.</p>}
+                </div>
+              </div>}
+            </div>
+            <a href="/" target="_blank"><Store />View store</a>
+          </div>
         </header>
         <section className="adminIntro">
           <p>{page.eyebrow}</p>
@@ -718,6 +787,10 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                 <b>{customers.length}</b>
                 <span>Customers</span>
               </article>
+            </section>
+            <section className="adminNotificationsPreview">
+              <div><Bell /><h2>Recent updates</h2><button type="button" onClick={markNoticesRead}>Mark all read</button></div>
+              {notices.length ? notices.slice(0,4).map(notice => <Link href={notice.href} key={notice.id} onClick={() => markNoticeRead(notice.id)}><span className={`noticeDot ${notice.kind}`} /><span><b>{notice.title}</b><small>{notice.detail}</small></span><strong>→</strong></Link>) : <p>No new updates yet. Paid orders, customer registrations and pending reviews will show here.</p>}
             </section>
             <section className="adminQuickLinks">
               {menu.slice(1).map(([id, label, Icon]) => (
