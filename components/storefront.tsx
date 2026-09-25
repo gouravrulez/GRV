@@ -173,6 +173,16 @@ export default function Storefront({ initialProducts = [], initialCategorySlug =
     [couponBusy, setCouponBusy] = useState(false),
     [publicCoupons, setPublicCoupons] = useState<{code:string;label?:string;discount_type:string;discount_value:number;minimum_order:number}[]>([]);
   useEffect(() => {
+    if (sessionStorage.getItem("kaoma_login_success") === "1") {
+      sessionStorage.removeItem("kaoma_login_success");
+      toast.success("Signed in successfully. Welcome to KAOMA!", {
+        id: "kaoma-login-success",
+        duration: 3500,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     // Warm the Razorpay checkout bundle shortly after page load so the payment
     // window opens quickly when the customer is ready.
     const preload = window.setTimeout(() => {
