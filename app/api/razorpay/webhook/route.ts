@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     }>;
     const order = orders?.[0];
     if (!order) throw new Error("Paid KAOMA order not found");
-    if (order.currency.toUpperCase() !== payment.currency.toUpperCase() ||
+    if (order.currency.toUpperCase() !== String(payment.currency).toUpperCase() ||
         Math.round(Number(order.total) * 100) !== payment.amount)
       throw new Error("Payment amount or currency does not match order");
 
