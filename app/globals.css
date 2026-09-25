@@ -248,3 +248,33 @@ a{color:inherit;text-decoration:none}.logo{display:inline-block}nav a{height:100
     padding-bottom:calc(38px + env(safe-area-inset-bottom));
   }
 }
+
+
+/* Compact high-contrast mobile customer profile */
+@media(max-width:800px){
+  .accountSection:has(.profileForm) .accountTitle{margin-bottom:12px}
+  .accountSection:has(.profileForm) .accountTitle>span{font-size:8px;letter-spacing:.16em;color:#a52c58}
+  .accountSection:has(.profileForm) .accountTitle h2{font-size:25px;line-height:1.1;margin:5px 0;color:#3b2032}
+  .accountSection:has(.profileForm) .accountTitle p{font-size:11px;line-height:1.4;color:#604d57}
+  .profileForm{margin-top:12px!important;padding:14px!important;border:1px solid #cdb9c0!important;border-radius:12px!important;background:#fff!important;box-shadow:0 8px 24px rgba(57,36,63,.08)!important}
+  .profileFormHead{gap:9px;padding-bottom:11px;border-bottom:1px solid #ddced3}
+  .profileFormHead>svg{width:25px;height:25px;color:#a52c58}
+  .profileFormHead h3{font-size:18px;line-height:1.2;color:#3b2032}
+  .profileFormHead p{margin-top:2px;font-size:10px;line-height:1.35;color:#66525d}
+  .profileFields{grid-template-columns:1fr!important;gap:10px!important;margin:13px 0!important}
+  .profileFields .wide{grid-column:auto!important}
+  .profileFields label{display:grid;gap:5px;color:#3b2032!important;font-size:12px!important;font-weight:800!important;line-height:1.25}
+  .profileFields input,.profileFields select{width:100%;min-width:0;height:44px!important;border:1.5px solid #bca7af!important;border-radius:7px!important;background:#fffdfb!important;color:#24151f!important;padding:0 11px!important;font-size:16px!important;box-shadow:none!important;opacity:1!important}
+  .profileFields input:focus,.profileFields select:focus{border-color:#8d204b!important;outline:3px solid rgba(195,67,104,.14)!important;outline-offset:0}
+  .profileFields input::placeholder{color:#78656e!important;opacity:1}
+  .profileFields input[readonly]{background:#f2ecee!important;color:#604d57!important;border-color:#cabac0!important}
+  .phoneField{grid-template-columns:84px minmax(0,1fr)!important;gap:6px!important}
+  .profileForm>.primary{width:100%!important;min-width:0!important;min-height:48px!important;border-radius:8px!important;background:#54233a!important;color:#fff!important;font-size:14px!important;font-weight:800!important;box-shadow:0 8px 18px rgba(84,35,58,.22)!important}
+  .profileForm>.primary:disabled{background:#856c78!important;color:#fff!important;opacity:1!important}
+  .growthCustomer{margin-top:16px}
+}
+@media(max-width:380px){
+  .customerAccountMain{padding-left:11px!important;padding-right:11px!important}
+  .profileForm{padding:12px!important}
+  .phoneField{grid-template-columns:78px minmax(0,1fr)!important}
+}
