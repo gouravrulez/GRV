@@ -10,6 +10,9 @@ export type CustomerSession = {
 
 export const supabaseReady = Boolean(url && key);
 
+let customerRefreshPromise: Promise<CustomerSession> | null = null;
+const CUSTOMER_SESSION_EXPIRED_EVENT = "kaoma:customer-session-expired";
+
 export async function signIn(email: string, password: string) {
   if (!url || !key) throw new Error("Supabase is not configured yet.");
   const response = await fetch(`${url}/auth/v1/token?grant_type=password`, {
@@ -136,13 +139,38 @@ export function clearAdminSession() {
   sessionStorage.removeItem("kaoma_admin_refresh_token");
 }
 
-function tokenExpiresSoon(token: string) {
+function tokenExpiryTime(token: string) {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return !payload.exp || Number(payload.exp) * 1000 <= Date.now() + 60_000;
+    const segment = token.split(".")[1] || "";
+    const normalized = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const payload = JSON.parse(atob(padded));
+    return Number(payload.exp) * 1000 || 0;
   } catch {
-    return true;
+    return 0;
   }
+}
+
+function tokenExpiresSoon(token: string) {
+  const expiry = tokenExpiryTime(token);
+  return !expiry || expiry <= Date.now() + 120_000;
+}
+
+export function customerSessionRefreshDelay(token: string) {
+  const expiry = tokenExpiryTime(token);
+  if (!expiry) return 5_000;
+  return Math.max(5_000, Math.min(expiry - Date.now() - 120_000, 50 * 60_000));
+}
+
+export function isCustomerSessionExpiredError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /session.*expired|jwt.*expired|invalid refresh token|refresh token.*(invalid|expired)|session_not_found/i.test(message);
+}
+
+function announceExpiredCustomerSession() {
+  clearCustomerSession();
+  if (typeof window !== "undefined")
+    window.dispatchEvent(new Event(CUSTOMER_SESSION_EXPIRED_EVENT));
 }
 
 export async function getValidCustomerSession() {
@@ -150,15 +178,19 @@ export async function getValidCustomerSession() {
   const refreshToken = localStorage.getItem("kaoma_customer_refresh_token") || "";
   if (accessToken && !tokenExpiresSoon(accessToken)) return accessToken;
   if (!refreshToken) {
-    clearCustomerSession();
+    announceExpiredCustomerSession();
     throw new Error("Your session has expired. Please sign in again.");
   }
   try {
-    const session = await refreshCustomerSession(refreshToken);
+    if (!customerRefreshPromise)
+      customerRefreshPromise = refreshCustomerSession(refreshToken).finally(() => {
+        customerRefreshPromise = null;
+      });
+    const session = await customerRefreshPromise;
     saveCustomerSession(session, localStorage.getItem("kaoma_customer_email") || "");
     return session.access_token;
   } catch (error) {
-    clearCustomerSession();
+    announceExpiredCustomerSession();
     throw error;
   }
 }
@@ -179,7 +211,11 @@ export async function getCurrentUser(token: string) {
     headers: { apikey: key, Authorization: `Bearer ${token}` },
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.msg || "Unable to read account.");
+  if (!response.ok) {
+    if (response.status === 401 || data.code === "session_expired" || data.code === "session_not_found")
+      throw new Error("Your session has expired. Please sign in again.");
+    throw new Error(data.msg || "Unable to read account.");
+  }
   return data as { id: string; email?: string };
 }
 
@@ -305,8 +341,15 @@ export async function db(path: string, token = "", init: RequestInit = {}) {
   });
   if (!response.ok) {
     const errorText = (await response.text()) || "Database request failed.";
-    if (response.status === 401 || errorText.includes("PGRST303") || errorText.includes("JWT expired"))
+    if (response.status === 401 || errorText.includes("PGRST303") || errorText.includes("JWT expired")) {
+      if (
+        typeof window !== "undefined" &&
+        token &&
+        token === localStorage.getItem("kaoma_customer_token")
+      )
+        announceExpiredCustomerSession();
       throw new Error("Your session has expired. Please sign in again.");
+    }
     throw new Error(errorText);
   }
   if (response.status === 204) return [];
