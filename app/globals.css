@@ -226,3 +226,25 @@ a{color:inherit;text-decoration:none}.logo{display:inline-block}nav a{height:100
   .products .info{padding:8px!important}
   .products .info h3{font-size:14px}
 }
+
+
+/* Mobile customer dashboard: one reliable vertical scroll container */
+@media(max-width:800px){
+  .otpLoginDialog:has(.customerDashboard){
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  .otpLoginDialog:has(.customerDashboard) .customerDashboard{
+    height:auto!important;
+    min-height:100dvh;
+    overflow:visible;
+  }
+  .otpLoginDialog:has(.customerDashboard) .customerAccountMain{
+    height:auto;
+    min-height:100dvh;
+    overflow:visible;
+    padding-bottom:calc(38px + env(safe-area-inset-bottom));
+  }
+}
