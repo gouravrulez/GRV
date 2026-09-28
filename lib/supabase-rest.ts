@@ -10,6 +10,23 @@ export type CustomerSession = {
 
 export const supabaseReady = Boolean(url && key);
 
+export async function googleSignInEnabled() {
+  if (!url || !key) return false;
+  const response = await fetch(`${url}/auth/v1/settings`, {
+    headers: { apikey: key },
+    cache: "no-store",
+  });
+  if (!response.ok) return false;
+  const settings = await response.json();
+  return settings.external?.google === true;
+}
+
+export function startGoogleSignIn() {
+  if (!url || !key) throw new Error("Customer sign-in is temporarily unavailable.");
+  const redirectTo = encodeURIComponent("https://kaoma.in/account");
+  window.location.assign(`${url}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`);
+}
+
 let customerRefreshPromise: Promise<CustomerSession> | null = null;
 const CUSTOMER_SESSION_EXPIRED_EVENT = "kaoma:customer-session-expired";
 
@@ -86,8 +103,8 @@ export async function sendEmailOtp(email: string, name = "") {
 
 export async function verifyEmailOtp(email: string, token: string) {
   if (!url || !key) throw new Error("Supabase is not configured yet.");
-  if (!/^\d{8}$/.test(token))
-    throw new Error("Enter the complete 8-digit OTP from your email.");
+  if (!/^\d{6,8}$/.test(token))
+    throw new Error("Enter the complete OTP from your email.");
   const response = await fetch(`${url}/auth/v1/verify`, {
     method: "POST",
     headers: { apikey: key, "Content-Type": "application/json" },
