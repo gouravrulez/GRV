@@ -10,17 +10,6 @@ export type CustomerSession = {
 
 export const supabaseReady = Boolean(url && key);
 
-export async function googleSignInEnabled() {
-  if (!url || !key) return false;
-  const response = await fetch(`${url}/auth/v1/settings`, {
-    headers: { apikey: key },
-    cache: "no-store",
-  });
-  if (!response.ok) return false;
-  const settings = await response.json();
-  return settings.external?.google === true;
-}
-
 export function startGoogleSignIn() {
   if (!url || !key) throw new Error("Customer sign-in is temporarily unavailable.");
   const redirectTo = encodeURIComponent("https://kaoma.in/account");
