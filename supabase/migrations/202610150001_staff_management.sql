@@ -113,7 +113,7 @@ revoke insert, update, delete on public.staff_members from authenticated;
 grant select on public.staff_members to authenticated;
 revoke insert, update, delete on public.staff_tasks from authenticated;
 grant select on public.staff_tasks to authenticated;
-grant update (status, completed_at, updated_at) on public.staff_tasks to authenticated;
+revoke update on public.staff_tasks from authenticated;
 grant select on public.staff_audit_log to authenticated;
 grant usage, select on sequence public.staff_audit_log_id_seq to service_role;
 grant all on public.staff_members, public.staff_tasks, public.staff_audit_log to service_role;
