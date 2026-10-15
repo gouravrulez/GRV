@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Activity, ClipboardCheck, MailPlus, RefreshCw, ShieldCheck, UserCog, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Activity, ClipboardCheck, MailPlus, RefreshCw, ShieldCheck, UserCog, CheckCircle2, AlertTriangle, Users, Clock3 } from "lucide-react";
 
 type View = "staff" | "tasks" | "activity";
 type Staff = { user_id: string; email: string; full_name: string | null; role_key: string; permissions: Record<string, boolean>; status: string; invited_at: string; created_at: string };
@@ -127,11 +127,11 @@ export function AdminStaffManagement({ token, view }: { token: string; view: Vie
   }
 
   return <div className="adminSections">
-    <section className="adminStats staffPlainStats">
-      <article><b>{staff.length}</b><span>Staff accounts</span></article>
-      <article><b>{staffActive}</b><span>Active staff</span></article>
-      <article><b>{tasks.length}</b><span>Total tasks</span></article>
-      <article><b>{tasksOpen}</b><span>Open tasks</span></article>
+    <section className="adminStats staffDashboardStats">
+      <article><Users/><div><b>{staff.length}</b><span>Staff accounts</span></div></article>
+      <article><ShieldCheck/><div><b>{staffActive}</b><span>Active staff</span></div></article>
+      <article><ClipboardCheck/><div><b>{tasks.length}</b><span>Total tasks</span></div></article>
+      <article><Clock3/><div><b>{tasksOpen}</b><span>Open tasks</span></div></article>
     </section>
     <article className="adminCard adminWide">
       <div className="staffPanelHeading">
