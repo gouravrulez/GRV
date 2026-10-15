@@ -10,6 +10,9 @@ const sections = [
   "reviews",
   "branding",
   "global",
+  "staff",
+  "tasks",
+  "activity",
 ] as const;
 type Section = (typeof sections)[number];
 

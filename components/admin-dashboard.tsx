@@ -3,8 +3,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   Bell,
   Boxes,
+  ClipboardCheck,
   ClipboardList,
   FolderTree,
   Globe2,
@@ -19,6 +21,7 @@ import {
 } from "lucide-react";
 import { db, getValidAdminSession, uploadProductImage } from "@/lib/supabase-rest";
 import { CommerceGrowthAdmin } from "@/components/commerce-growth-admin";
+import { AdminStaffManagement } from "@/components/admin-staff-management";
 type Cat = { id: string; name: string; slug: string; icon_url?: string | null };
 type Sub = { id: string; category_id: string; name: string; slug: string; icon_url?: string | null };
 type Product = {
@@ -120,7 +123,10 @@ type AdminSection =
   | "products"
   | "reviews"
   | "branding"
-  | "global";
+  | "global"
+  | "staff"
+  | "tasks"
+  | "activity";
 const sectionTitles: Record<
   AdminSection,
   { eyebrow: string; title: string; description: string }
@@ -167,6 +173,21 @@ const sectionTitles: Record<
     title: "Markets, shipping & payments",
     description:
       "Configure currencies, international shipping and future payment providers.",
+  },
+  staff: {
+    eyebrow: "TEAM & ACCESS CONTROL",
+    title: "Staff management",
+    description: "Invite staff by email and control exactly which areas of KAOMA they can access.",
+  },
+  tasks: {
+    eyebrow: "WORK ASSIGNMENTS",
+    title: "Staff tasks",
+    description: "Assign work, set priorities and deadlines, and monitor progress.",
+  },
+  activity: {
+    eyebrow: "ACCOUNTABILITY",
+    title: "Activity log",
+    description: "Review recorded staff and administrator actions.",
   },
 };
 
@@ -695,6 +716,9 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
     ["reviews", "Customer Reviews", Star],
     ["branding", "Photos, Logo & Homepage", Settings],
     ["global", "Global Commerce", Globe2],
+    ["staff", "Staff & Permissions", Users],
+    ["tasks", "Work Assignments", ClipboardCheck],
+    ["activity", "Activity Log", Activity],
   ] as const;
   const page = sectionTitles[section];
   return (
@@ -807,6 +831,9 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
           </>
         )}
         <section className="adminSections">
+          {section === "staff" && <AdminStaffManagement token={token} view="staff" />}
+          {section === "tasks" && <AdminStaffManagement token={token} view="tasks" />}
+          {section === "activity" && <AdminStaffManagement token={token} view="activity" />}
           {section === "global" && <CommerceGrowthAdmin token={token} products={products} />}
           {section === "orders" && (
             <article className="adminCard adminWide">
