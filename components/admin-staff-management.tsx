@@ -10,21 +10,17 @@ type Event = { id: number; actor_email: string | null; action: string; target_ty
 
 const permissionOptions = [
   ["orders.view", "View orders"], ["orders.update", "Update order status"],
-  ["orders.delete", "Delete orders"], ["customers.view", "View customers"],
-  ["customers.manage", "Manage customer details"], ["customers.delete", "Delete customer data"],
-  ["products.view", "View products"], ["products.manage", "Manage products"],
-  ["inventory.manage", "Manage inventory"], ["reviews.manage", "Manage reviews"],
-  ["settings.manage", "Manage store settings"], ["tasks.manage", "Manage tasks"],
-  ["staff.manage", "Manage staff"], ["audit.view", "View activity log"], ["reports.view", "View reports"],
+  ["customers.view", "View customer directory"], ["products.view", "View products"],
+  ["inventory.manage", "Update inventory quantities"], ["reviews.manage", "Moderate reviews"],
 ] as const;
 const roleNames: Record<string, string> = {
   order_manager: "Order manager", product_manager: "Product manager",
   customer_support: "Customer support", inventory_delivery: "Inventory & delivery", custom: "Custom access",
 };
 const rolePermissions: Record<string, Record<string, boolean>> = {
-  order_manager: { "orders.view": true, "orders.update": true, "customers.view": true, "reports.view": true },
-  product_manager: { "products.view": true, "products.manage": true, "inventory.manage": true },
-  customer_support: { "orders.view": true, "customers.view": true, "reviews.manage": true },
+  order_manager: { "orders.view": true, "orders.update": true, "customers.view": true },
+  product_manager: { "products.view": true, "inventory.manage": true },
+  customer_support: { "orders.view": true, "customers.view": true },
   inventory_delivery: { "orders.view": true, "orders.update": true, "products.view": true, "inventory.manage": true },
   custom: {},
 };
@@ -156,7 +152,7 @@ export function AdminStaffManagement({ token, view }: { token: string; view: Vie
           </div>
           <h4>Permissions for this invitation</h4>
           <div className="staffPermissionGrid">{permissionOptions.map(([key, label]) => <label key={key}><input type="checkbox" checked={invitePermissions[key] === true} onChange={(e) => toggleInvitePermission(key, e.target.checked)}/><span>{label}</span></label>)}</div>
-          <p className="staffSafetyNote"><ShieldCheck size={16}/> Staff never receive main-admin privileges. Keep staff management, store settings and destructive customer/order permissions disabled unless genuinely required.</p>
+          <p className="staffSafetyNote"><ShieldCheck size={16}/> Only the modules listed above are granted by this workspace. Staff cannot delete customer/order records or manage staff and store-wide settings.</p>
           <button className="primary" disabled={busy}><MailPlus size={16}/>{busy ? "Sending invitation…" : "Send secure invitation"}</button>
         </form>
         <h3 className="staffListTitle">Team directory</h3>
