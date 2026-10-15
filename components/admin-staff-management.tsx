@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Activity, ClipboardCheck, MailPlus, RefreshCw, ShieldCheck, UserCog, Users, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
+import { Activity, ClipboardCheck, MailPlus, RefreshCw, ShieldCheck, UserCog, CheckCircle2, AlertTriangle } from "lucide-react";
 
 type View = "staff" | "tasks" | "activity";
 type Staff = { user_id: string; email: string; full_name: string | null; role_key: string; permissions: Record<string, boolean>; status: string; invited_at: string; created_at: string };
