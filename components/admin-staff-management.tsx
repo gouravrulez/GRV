@@ -127,7 +127,7 @@ export function AdminStaffManagement({ token, view }: { token: string; view: Vie
   }
 
   return <div className="adminSections">
-    <section className="adminStats">
+    <section className="adminStats staffPlainStats">
       <article><b>{staff.length}</b><span>Staff accounts</span></article>
       <article><b>{staffActive}</b><span>Active staff</span></article>
       <article><b>{tasks.length}</b><span>Total tasks</span></article>
