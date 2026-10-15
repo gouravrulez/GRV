@@ -474,3 +474,7 @@ a{color:inherit;text-decoration:none}.logo{display:inline-block}nav a{height:100
 
 .staffProgressControl input{border:1px solid #dfd1c2;border-radius:8px;padding:9px 10px;background:#fffdf7;color:#39243f;min-width:120px;font:inherit}
 .staffModuleBadge{font-size:10px;text-transform:uppercase;letter-spacing:.05em;border-radius:999px;background:#f7e8ed;color:#a52d55;padding:6px 9px;font-weight:800;white-space:nowrap}
+
+.staffPlainStats article{grid-template-columns:1fr;gap:6px}.staffPlainStats article b,.staffPlainStats article span{grid-column:1}
+.adminCustomerActions{align-items:flex-end;gap:8px}.adminCustomerActions button{white-space:nowrap}
+@media(max-width:760px){.adminCustomerActions{align-items:flex-start}.adminList>div{flex-wrap:wrap}.adminList>div>button{align-self:flex-start}}
