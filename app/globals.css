@@ -418,3 +418,56 @@ a{color:inherit;text-decoration:none}.logo{display:inline-block}nav a{height:100
 .staffAuditEvent pre{max-width:100%;overflow:auto;padding:10px;border-radius:8px;background:#f8f4f0;color:#4f4550;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:900px){.staffDirectory{grid-template-columns:1fr}.staffPermissionGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.staffPanelHeading{flex-direction:column}.staffInviteForm{padding:15px}.staffFormGrid,.staffMemberControls,.staffTaskActions{grid-template-columns:1fr}.staffFieldWide{grid-column:auto}.staffPermissionGrid,.staffPermissionEditor .staffPermissionGrid{grid-template-columns:1fr}.staffTaskHead{flex-direction:column}.staffTaskHead .secondary{align-self:flex-start}}
+
+/* KAOMA staff invitation and employee task portal */
+.staffAcceptShell{min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,520px);gap:clamp(28px,7vw,100px);align-items:center;padding:clamp(22px,6vw,84px);background:radial-gradient(ellipse at 10% 15%,#f6e6ed 0,transparent 42%),#fffdf7;color:#39243f}
+.staffAcceptStory{max-width:620px;display:flex;flex-direction:column;gap:24px}
+.staffAcceptStory>div{display:flex;align-items:center;gap:10px;letter-spacing:.17em;font-size:11px;font-weight:800;color:#a52d55}
+.staffAcceptStory>div svg{width:24px;height:24px}
+.staffAcceptStory h1{font:500 clamp(38px,5.5vw,70px)/1.08 Georgia,serif;margin:0;color:#39243f;letter-spacing:-.035em}
+.staffAcceptStory h1 i{font-weight:400;color:#c34368}
+.staffAcceptStory>p{font-size:16px;line-height:1.8;color:#756a76;max-width:460px;margin:0}
+.staffAcceptStory>small{display:flex;align-items:center;gap:8px;color:#716373;font-size:12px;margin-top:25px}
+.staffAcceptStory>small svg{width:17px;color:#c34368}
+.staffAcceptCard{background:#fff;border:1px solid #eadcc8;border-radius:22px;padding:clamp(24px,4vw,42px);box-shadow:0 24px 80px #54233a12;min-width:0}
+.staffAcceptCard>img{object-fit:contain;object-position:left center;max-width:100%;height:auto}
+.staffAcceptCard .staffEyebrow{margin:28px 0 8px}
+.staffAcceptCard h2{font:700 29px Georgia,serif;margin:0 0 10px;color:#39243f}
+.staffAcceptHint{font-size:13px;line-height:1.65;color:#786d79;margin:0 0 18px}
+.staffAcceptEmail{background:#f8f1f5;border-radius:8px;padding:10px 12px;color:#8c3154;font-size:13px;margin:14px 0}
+.staffAcceptForm{display:grid;gap:15px;margin-top:20px}
+.staffAcceptForm label{display:grid;gap:7px;color:#544a56;font-size:13px;font-weight:700}
+.staffAcceptForm input{width:100%;border:1px solid #dfd1c2;border-radius:9px;padding:12px;background:#fffdf7;color:#39243f;font:inherit;font-weight:500}
+.staffAcceptForm button{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px}
+.staffAcceptFoot{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:#887c88;line-height:1.5;margin:24px 0 0}
+.staffAcceptFoot svg{width:15px;flex-shrink:0;color:#c34368}
+.staffAcceptLink{display:inline-block;margin-top:18px;color:#a52d55;font-weight:700;font-size:13px}
+.staffWorkspaceShell{min-height:100vh;background:#fffdf7;color:#39243f;padding:0 clamp(18px,5vw,68px) 40px}
+.staffWorkspaceHeader{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 0;border-bottom:1px solid #eadcc8}
+.staffWorkspaceHeader>img{object-fit:contain;max-width:165px;height:auto}
+.staffWorkspaceHeader>div{display:flex;align-items:center;gap:16px;min-width:0}
+.staffWorkspaceHeader span{font-size:12px;color:#786d79;overflow-wrap:anywhere}
+.staffWorkspaceHeader button{display:flex;align-items:center;gap:6px;border:1px solid #eadcc8;background:#fff;border-radius:9px;padding:9px 11px;color:#8c3154;font-weight:700;cursor:pointer}
+.staffWorkspaceIntro{padding:42px 0 24px}
+.staffWorkspaceIntro .staffEyebrow{margin:0 0 8px}
+.staffWorkspaceIntro h1{font:700 clamp(30px,4vw,44px) Georgia,serif;margin:0 0 10px}
+.staffWorkspaceIntro>p:last-child{color:#756a76;line-height:1.7;margin:0}
+.staffWorkspaceStats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:10px 0 28px}
+.staffWorkspaceStats article{display:grid;grid-template-columns:35px 1fr;grid-template-rows:auto auto;align-items:center;column-gap:10px;border:1px solid #eadcc8;border-radius:14px;padding:18px;background:#fff}
+.staffWorkspaceStats svg{grid-row:1/3;color:#c34368;width:25px;height:25px}
+.staffWorkspaceStats b{font:700 24px Georgia,serif}
+.staffWorkspaceStats span{font-size:12px;color:#786d79}
+.staffWorkspaceTasks{max-width:1000px;display:grid;gap:14px}
+.staffWorkspaceTaskHeading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.staffWorkspaceTaskHeading h2{font:700 24px Georgia,serif;margin:0}
+.staffWorkspaceTaskHeading .secondary{display:flex;align-items:center;gap:6px;border:1px solid #eadcc8;background:#fff;border-radius:9px;padding:9px 11px;color:#8c3154;font-weight:700}
+.staffProgressControl{display:flex;align-items:center;gap:12px;justify-content:flex-end;margin-top:14px;font-size:12px;font-weight:700;color:#756a76}
+.staffProgressControl select{border:1px solid #dfd1c2;border-radius:8px;padding:9px 10px;background:#fffdf7;color:#39243f;min-width:170px}
+.staffWorkspaceEmpty{display:grid;justify-items:center;text-align:center;padding:42px 20px;border:1px dashed #dfd1c2;border-radius:14px;background:#fff}
+.staffWorkspaceEmpty svg{width:32px;height:32px;color:#c34368}
+.staffWorkspaceEmpty h3{font:700 20px Georgia,serif;margin:12px 0 5px}
+.staffWorkspaceEmpty p{color:#786d79;font-size:13px;margin:0}
+.staffWorkspaceFooter{display:flex;align-items:center;gap:8px;color:#857886;font-size:12px;margin-top:28px;padding-top:18px;border-top:1px solid #eadcc8}
+.staffWorkspaceFooter svg{color:#c34368;flex-shrink:0}
+@media(max-width:850px){.staffAcceptShell{grid-template-columns:1fr;max-width:760px;margin:auto}.staffAcceptStory{gap:15px}.staffAcceptStory>small{margin-top:0}.staffAcceptCard{max-width:520px;width:100%;margin:auto}}
+@media(max-width:520px){.staffAcceptShell{padding:18px}.staffAcceptCard{padding:22px}.staffWorkspaceHeader{align-items:flex-start}.staffWorkspaceHeader>div{flex-direction:column;align-items:flex-end;gap:7px}.staffWorkspaceStats{grid-template-columns:1fr}.staffWorkspaceStats article{padding:13px}.staffProgressControl{align-items:stretch;flex-direction:column}.staffProgressControl select{width:100%}}
