@@ -128,10 +128,10 @@ export function AdminStaffManagement({ token, view }: { token: string; view: Vie
 
   return <div className="adminSections">
     <section className="adminStats">
-      <article><Users/><b>{staff.length}</b><span>Staff accounts</span></article>
-      <article><ShieldCheck/><b>{staffActive}</b><span>Active staff</span></article>
-      <article><ClipboardCheck/><b>{tasks.length}</b><span>Total tasks</span></article>
-      <article><Clock3/><b>{tasksOpen}</b><span>Open tasks</span></article>
+      <article><b>{staff.length}</b><span>Staff accounts</span></article>
+      <article><b>{staffActive}</b><span>Active staff</span></article>
+      <article><b>{tasks.length}</b><span>Total tasks</span></article>
+      <article><b>{tasksOpen}</b><span>Open tasks</span></article>
     </section>
     <article className="adminCard adminWide">
       <div className="staffPanelHeading">
