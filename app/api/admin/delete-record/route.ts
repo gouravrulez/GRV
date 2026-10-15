@@ -50,9 +50,25 @@ export async function DELETE(request: Request) {
     if (input.kind === "customer") {
       const found = await db(`profiles?user_id=eq.${encodeURIComponent(input.id)}&select=user_id,email,full_name&limit=1`);
       if (!found?.length) return NextResponse.json({ error: "Customer not found; it may already have been deleted." }, { status: 404 });
+      const customer = found[0] as { user_id: string; email?: string | null; full_name?: string | null };
+      const authResponse = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(input.id)}`, {
+        method: "DELETE",
+        headers: headers(),
+        cache: "no-store",
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!authResponse.ok) {
+        const error = await authResponse.json().catch(() => ({}));
+        throw new Error(error.msg || error.message || "Could not delete the customer's sign-in account.");
+      }
+      // Remove any profile row left behind if the project's FK is not configured to cascade.
       await db(`profiles?user_id=eq.${encodeURIComponent(input.id)}`, { method: "DELETE" });
-      await audit(admin, "admin.customer.profile_deleted", "customer", input.id, { email: found[0].email || null, full_name: found[0].full_name || null, note: "Customer profile removed; authentication account and existing orders are retained." });
-      return NextResponse.json({ deleted: true, kind: "customer", retainedOrderHistory: true, profileOnly: true });
+      await audit(admin, "admin.customer.deleted", "customer", input.id, {
+        email: customer.email || null,
+        full_name: customer.full_name || null,
+        note: "Customer sign-in account and profile deleted; existing order history is retained.",
+      });
+      return NextResponse.json({ deleted: true, kind: "customer", retainedOrderHistory: true });
     }
     return NextResponse.json({ error: "Choose a customer or order record." }, { status: 400 });
   } catch (error) {
