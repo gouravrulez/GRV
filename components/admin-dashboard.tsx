@@ -556,6 +556,28 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
       : result.emailSent ? "Order saved and customer email sent." : "Order saved.");
     await load(authToken);
   }
+  async function deleteAdminRecord(kind: "order" | "customer", id: string, label: string) {
+    const warning = kind === "order"
+      ? `Permanently delete order ${label} and its line items? This cannot be undone.`
+      : `Permanently delete the customer account and saved profile for ${label}? Existing orders will be retained. This cannot be undone.`;
+    if (!window.confirm(warning)) return;
+    try {
+      const authToken = await getValidAdminSession();
+      setToken(authToken);
+      const response = await fetch("/api/admin/delete-record", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, id }),
+        cache: "no-store",
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Unable to delete record.");
+      setMsg(kind === "order" ? `Order ${label} deleted.` : `Customer account and profile for ${label} deleted. Order history was retained.`);
+      await load(authToken);
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : "Unable to delete record.");
+    }
+  }
   async function orderStatus(id: string, status: string) {
     try { await updateOrderOnServer({ orderId: id, status }); }
     catch (error) { setMsg(error instanceof Error ? error.message : "Unable to update order."); }
@@ -741,7 +763,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
               key={id}
               href={`/admin/${id}`}
             >
-              <Icon />
+              {id !== "staff" && id !== "tasks" && <Icon />}
               <span>{label}</span>
               {id === "overview" && unreadNotices > 0 && <b>{unreadNotices}</b>}
               {id === "customers" && customers.length > 0 && (
@@ -878,6 +900,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                         <option>delivered</option>
                         <option>cancelled</option>
                       </select>
+                      <button type="button" className="secondary" onClick={() => void deleteAdminRecord("order", o.id, o.order_number)}>Delete order</button>
                     </div>
                   ))
                 ) : (
@@ -908,9 +931,10 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                             .join(", ") || "Address not added"}
                         </small>
                       </span>
-                      <small>
-                        {new Date(c.created_at).toLocaleDateString()}
-                      </small>
+                      <span className="adminCustomerActions">
+                        <small>{new Date(c.created_at).toLocaleDateString()}</small>
+                        <button type="button" className="secondary" onClick={() => void deleteAdminRecord("customer", c.user_id, c.email || c.full_name || "this customer")}>Delete customer</button>
+                      </span>
                     </div>
                   ))
                 ) : (
