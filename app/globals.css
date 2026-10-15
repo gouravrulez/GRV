@@ -360,3 +360,61 @@ a{color:inherit;text-decoration:none}.logo{display:inline-block}nav a{height:100
 .adminNotificationsPreview>a{grid-template-columns:11px minmax(0,1fr) auto;padding:12px 17px}
 .adminNotificationsPreview>a>strong{color:#a52d55}
 @media(max-width:760px){.adminHeaderActions>a{font-size:0;padding:8px}.adminHeaderActions>a svg{width:20px}.adminNotificationsPreview{margin:0 18px 22px}}
+
+/* KAOMA staff-management workspace */
+.staffPanelHeading{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:24px}
+.staffPanelHeading h2{margin:4px 0 8px;font:700 27px Georgia,serif;color:#39243f}
+.staffPanelHeading p{margin:0;color:#746b75;line-height:1.6;max-width:720px}
+.staffEyebrow{font-size:11px!important;letter-spacing:.16em;text-transform:uppercase;color:#c34368!important;font-weight:800}
+.staffPanelHeading .secondary,.staffTaskHead .secondary{display:inline-flex;align-items:center;gap:7px;border:1px solid #eadcc8;border-radius:9px;background:#fffdf7;padding:10px 13px;color:#54233a;font-weight:700;cursor:pointer}
+.staffInviteForm{border:1px solid #eadcc8;border-radius:16px;background:#fffdf7;padding:22px;margin:20px 0 28px}
+.staffFormTitle{display:flex;gap:12px;align-items:flex-start;margin-bottom:18px}
+.staffFormTitle>svg{width:24px;height:24px;color:#c34368;flex-shrink:0}
+.staffFormTitle h3,.staffListTitle{margin:0 0 5px;font:700 20px Georgia,serif;color:#39243f}
+.staffFormTitle p{margin:0;color:#746b75;line-height:1.55}
+.staffFormGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}
+.staffFormGrid label,.staffMemberControls label,.staffTaskActions label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:#544a56}
+.staffFormGrid input,.staffFormGrid select,.staffFormGrid textarea,.staffMemberControls select,.staffTaskActions select{width:100%;min-width:0;border:1px solid #dfd1c2;border-radius:9px;padding:11px 12px;background:#fff;color:#39243f;font:inherit;font-weight:500}
+.staffFieldWide{grid-column:1/-1}
+.staffInviteForm h4{margin:18px 0 10px;font-size:14px;color:#39243f}
+.staffPermissionGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 14px}
+.staffPermissionGrid label{display:flex;align-items:flex-start;gap:8px;padding:9px 10px;border:1px solid #eee3d6;border-radius:9px;background:#fff;font-size:12px;line-height:1.45;color:#514653;cursor:pointer}
+.staffPermissionGrid input{margin:2px 0 0;accent-color:#c34368;flex-shrink:0}
+.staffSafetyNote{display:flex;align-items:flex-start;gap:8px;color:#75616b;background:#f9f0f1;border-radius:9px;padding:11px 12px;font-size:12px;line-height:1.5;margin:15px 0}
+.staffSafetyNote svg{flex-shrink:0;color:#a52d55}
+.staffInviteForm>.primary,.staffPermissionEditor>.primary{display:inline-flex;align-items:center;gap:8px}
+.staffListTitle{margin:28px 0 14px}
+.staffDirectory{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.staffMemberCard,.staffTaskCard{min-width:0;border:1px solid #eadcc8;border-radius:14px;padding:17px;background:#fff}
+.staffMemberTop{display:flex;align-items:center;gap:11px}
+.staffAvatar{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#f7e8ed;color:#a52d55;flex-shrink:0}
+.staffMemberIdentity{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.staffMemberIdentity strong{color:#39243f;overflow-wrap:anywhere}
+.staffMemberIdentity span,.staffMemberIdentity small{font-size:12px;color:#786d79;overflow-wrap:anywhere}
+.staffStatus,.staffPriority{display:inline-flex;border-radius:999px;padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;background:#f1ecef;color:#685965;white-space:nowrap}
+.staffStatus.active{background:#e4f4e9;color:#22643c}.staffStatus.invited{background:#fff1d9;color:#895b12}.staffStatus.suspended,.staffStatus.revoked{background:#fae4e4;color:#9c2d32}
+.staffMemberControls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+.staffPermissionEditor{border-top:1px solid #f0e6db;padding-top:12px}
+.staffPermissionEditor summary{cursor:pointer;font-size:13px;font-weight:800;color:#8c3154;margin-bottom:12px}
+.staffPermissionEditor .staffPermissionGrid{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:12px}
+.staffTaskList{display:grid;gap:13px}
+.staffTaskHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.staffTaskHead h3{margin:8px 0 6px;font:700 19px Georgia,serif;color:#39243f;overflow-wrap:anywhere}
+.staffTaskHead p{margin:0;color:#756a76;font-size:13px;line-height:1.5;white-space:pre-wrap}
+.staffPriority.urgent{background:#fae4e4;color:#a3212a}.staffPriority.high{background:#fff0df;color:#965514}.staffPriority.normal{background:#eaf1fb;color:#315b89}.staffPriority.low{background:#e7f4e9;color:#276341}
+.staffTaskMeta{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.staffTaskMeta span{font-size:11px;background:#f7f2ec;border-radius:7px;padding:6px 8px;color:#6d5d69}
+.staffTaskActions{display:grid;grid-template-columns:1fr 1fr;gap:12px;border-top:1px solid #f0e6db;padding-top:13px}
+.staffAuditIntro{display:flex;align-items:flex-start;gap:10px;padding:14px;border-radius:10px;background:#f8f1f5;color:#695768;line-height:1.55;font-size:13px;margin-bottom:15px}
+.staffAuditIntro svg{flex-shrink:0;color:#c34368}.staffAuditIntro p{margin:0}
+.staffAuditList{display:grid;gap:0}
+.staffAuditEvent{display:flex;gap:13px;padding:16px 2px;border-bottom:1px solid #f0e6db}
+.staffAuditIcon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#f8edf1;color:#b43b63;flex-shrink:0}
+.staffAuditEvent>div:nth-child(2){min-width:0;flex:1}
+.staffAuditEvent strong{text-transform:capitalize;color:#39243f}
+.staffAuditEvent p{font-size:12px;color:#756a76;margin:5px 0}
+.staffAuditEvent small{font-size:11px;color:#8b808a}
+.staffAuditEvent details{margin-top:9px;font-size:12px;color:#8b3154}
+.staffAuditEvent pre{max-width:100%;overflow:auto;padding:10px;border-radius:8px;background:#f8f4f0;color:#4f4550;font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:900px){.staffDirectory{grid-template-columns:1fr}.staffPermissionGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.staffPanelHeading{flex-direction:column}.staffInviteForm{padding:15px}.staffFormGrid,.staffMemberControls,.staffTaskActions{grid-template-columns:1fr}.staffFieldWide{grid-column:auto}.staffPermissionGrid,.staffPermissionEditor .staffPermissionGrid{grid-template-columns:1fr}.staffTaskHead{flex-direction:column}.staffTaskHead .secondary{align-self:flex-start}}
