@@ -763,7 +763,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
               key={id}
               href={`/admin/${id}`}
             >
-              {id !== "staff" && id !== "tasks" && <Icon />}
+              <Icon />
               <span>{label}</span>
               {id === "overview" && unreadNotices > 0 && <b>{unreadNotices}</b>}
               {id === "customers" && customers.length > 0 && (
